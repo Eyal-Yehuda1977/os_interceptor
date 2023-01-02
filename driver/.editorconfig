@@ -1,0 +1,10 @@
+[*]
+charset=utf-8
+end_of_line=lf
+insert_final_newline=false
+indent_style=space
+indent_size=4
+
+[{*.cc,*.cpp,*.hpp,*.hxx,*.hh,*.cxx,*.tcc,*.h,*.c,*.pch,*.inl,*.cp}]
+indent_style=tab
+tab_width=4

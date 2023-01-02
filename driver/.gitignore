@@ -1,0 +1,10 @@
+*.cmd
+*.o
+*~
+modules.order
+*.ko
+*.mod
+*.mod.*
+Module.symvers
+*.#Makefile
+/driver_version.h
