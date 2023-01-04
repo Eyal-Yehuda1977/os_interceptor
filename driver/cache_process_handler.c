@@ -181,7 +181,7 @@ int gather_process_information_syscall_execve(char* target_file_path,
 		//debug("[ %s ]  name:  %s",MODULE_NAME,process_info->data.name);
 	}   
 
-	if ( NULL ! = target_cmdline ) {  
+	if ( NULL != target_cmdline ) {  
 		strncpy(process_info->data.cmdline, target_cmdline, EVENT_MAX_PATH_LEN);
 		//debug("[ %s ]  cmdline:     %s",MODULE_NAME,process_info->data.cmdline);
 	}

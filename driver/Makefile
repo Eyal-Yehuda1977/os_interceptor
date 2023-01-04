@@ -23,7 +23,7 @@ lib_memory_mngr-srcs     := lib_memory_mngr/kmem_slab_pool.o \
 
 
 
-$(NAME)-y    := kcontroller.o \
+$(NAME)-y    := main.o \
                 mem_handler.o \
                 module_boot.o \
                 relay_interface.o \
