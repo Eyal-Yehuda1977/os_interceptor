@@ -5,17 +5,20 @@ BUILD_DIR_MAKEFILE ?= $(BUILD_DIR)/Makefile
 NAME        := os_interceptor
 obj-m       := $(NAME).o
 
-bpm-srcs                 := bpm/hardening_policy.o \
-                            bpm/bpm.o \
-                            bpm/algorithm.o \
-                            bpm/utils.o
+policy-srcs              := policy/hardening_policy.o \
+                            policy/policy.o \
+                            policy/algorithm.o \
+                            policy/utils.o
+
 lib_process-src          := lib_process/process_scan.o
 libudis86-srcs           := libudis86/decode.o \
                             libudis86/itab.o \
                             libudis86/udis86.o
+
 lib_cache_process-srcs   := lib_cache_process/cache_process.o
 lib_hooks-srcs           := lib_hooks/syscall_stub.o \
 			    lib_hooks/hook_functions.o	
+
 lib_crypto-srcs          := lib_crypto/crypto.o 
 lib_network-srcs	 := lib_network/network.o
 lib_memory_mngr-srcs     := lib_memory_mngr/kmem_slab_pool.o \
@@ -33,7 +36,7 @@ $(NAME)-y    := main.o \
                 cache_process_handler.o \
 		wq_task.o \
 		thread_task.o \
-		$(bpm-srcs) \
+		$(policy-srcs) \
                 $(libudis86-srcs) \
                 $(lib_cache_process-srcs) \
 		$(lib_process-src) \
@@ -49,7 +52,7 @@ default: prepare-build
 
 prepare-build:
 	mkdir -p "$(BUILD_DIR)"
-	mkdir -p "$(BUILD_DIR)/bpm"
+	mkdir -p "$(BUILD_DIR)/policy"
 	mkdir -p "$(BUILD_DIR)/libudis86"
 	mkdir -p "$(BUILD_DIR)/lib_cache_process"
 	mkdir -p "$(BUILD_DIR)/lib_process"

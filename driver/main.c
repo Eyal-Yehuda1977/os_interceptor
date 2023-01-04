@@ -1,4 +1,4 @@
-#include "kcontroller_data_type.h"
+#include "os_interceptor_data_type.h"
 
 
 
@@ -36,11 +36,11 @@ static pid_t pid_permitted;
 static atomic_long_t netlink_handshake_valid = ATOMIC_LONG_INIT(0);
 
 // file operations for debugfs
-long      kcontroller_ioctl(struct file *filp, unsigned int ioctl_num, unsigned long ioctl_param);
-int       kcontroller_open(struct inode *inode, struct file *filp);
-int       kcontroller_release(struct inode *inode, struct file *filep);
-ssize_t   kcontroller_read(struct file *filp, char __user *buf, size_t count, loff_t *offp);
-ssize_t   kcontroller_write(struct file *filp, const char __user *buf, size_t count, loff_t *offp);
+long      ioctl(struct file *filp, unsigned int ioctl_num, unsigned long ioctl_param);
+int       open(struct inode *inode, struct file *filp);
+int       release(struct inode *inode, struct file *filep);
+ssize_t   read(struct file *filp, char __user *buf, size_t count, loff_t *offp);
+ssize_t   write(struct file *filp, const char __user *buf, size_t count, loff_t *offp);
 
 void set_pid_permitted(pid_t pid) {
 	pid_permitted = pid;
@@ -80,19 +80,19 @@ const struct md5_data_t* retrieve_bpm_md5(void) {
 
 static const struct file_operations fops = {
  
-	.open           = kcontroller_open, 
-	.release        = kcontroller_release, 
-	.read           = kcontroller_read,
-	.write          = kcontroller_write, 
-	.unlocked_ioctl = kcontroller_ioctl 
+	.open           = open, 
+	.release        = release, 
+	.read           = read,
+	.write          = write, 
+	.unlocked_ioctl = ioctl 
 
 };
 
 
-long kcontroller_ioctl(struct file* filp, unsigned int ioctl_num, unsigned long ioctl_param) {
+long ioctl(struct file* filp, unsigned int ioctl_num, unsigned long ioctl_param) {
 
 
-	user_authorized("kcontroller_ioctl")
+	user_authorized("ioctl")
    
 	switch(ioctl_num)
 	{
@@ -110,11 +110,11 @@ long kcontroller_ioctl(struct file* filp, unsigned int ioctl_num, unsigned long 
 }
 
 
-int kcontroller_open(struct inode *inode, struct file *filp) {
+int open(struct inode *inode, struct file *filp) {
 
-	user_authorized("kcontroller_open")
+	user_authorized("open")
 
-	debug("[ %s ] kcontroller_open() device opened module_ref_count [ %u ]\n",
+	debug("[ %s ] open() device opened module_ref_count [ %u ]\n",
 	      MODULE_NAME, 
 	      module_ref_count++);
 
@@ -123,14 +123,14 @@ int kcontroller_open(struct inode *inode, struct file *filp) {
 	return 0;
 }
 
-int kcontroller_release(struct inode *inode, struct file *filep) {
+int release(struct inode *inode, struct file *filep) {
 
 
-	user_authorized("kcontroller_release")
+	user_authorized("release")
       
 	if (module_ref_count > 0) module_ref_count--;
     
-	debug("[ %s ] kcontroller_release() device released module_ref_count [ %u ]\n", 
+	debug("[ %s ] release() device released module_ref_count [ %u ]\n", 
 	      MODULE_NAME,  
 	      module_ref_count);
 
@@ -140,11 +140,11 @@ int kcontroller_release(struct inode *inode, struct file *filep) {
 }
 
 
-ssize_t kcontroller_read(struct file *filp, char __user *buf, size_t count, loff_t *offp) {
+ssize_t read(struct file *filp, char __user *buf, size_t count, loff_t *offp) {
 
-	user_authorized("kcontroller_read")
+	user_authorized("read")
 
-	debug("[ %s ] kcontroller_read()  device read.  count: [ %zd ] offp: [ %lld ]\n",
+	debug("[ %s ] read()  device read.  count: [ %zd ] offp: [ %lld ]\n",
 	      MODULE_NAME, 
 	      count, 
 	      (*offp));
@@ -154,7 +154,7 @@ ssize_t kcontroller_read(struct file *filp, char __user *buf, size_t count, loff
 }
 
 
-ssize_t kcontroller_write(struct file *filp, const char __user *buf, size_t count, loff_t *offp) {
+ssize_t write(struct file *filp, const char __user *buf, size_t count, loff_t *offp) {
 
 
 	unsigned char *data = NULL, *p = NULL;
@@ -162,11 +162,11 @@ ssize_t kcontroller_write(struct file *filp, const char __user *buf, size_t coun
 	hp_rule_file_t *rule_cnt;
 	hp_rule_t *hpr;
    
-	user_authorized("kcontroller_write");
+	user_authorized("write");
 
 	smp_mb();
 
-	info("[ %s ] kcontroller_write()  device write.  count: [ %zd ] offp: [ %lld ] \n",
+	info("[ %s ] write()  device write.  count: [ %zd ] offp: [ %lld ] \n",
 	     MODULE_NAME, 
 	     count, 
 	     (*offp));
@@ -236,7 +236,7 @@ exit_1:
 
 
 
-static int __init kcontroller_init(void) {
+static int __init os_interceptor_init(void) {
 
 
 	int init_module_boot_process(void);
@@ -247,18 +247,18 @@ static int __init kcontroller_init(void) {
 
 	info("[ %s ] driver is loading up .... .\n", MODULE_NAME);    
  
-	dfs = debugfs_create_file(KCONTROLLER_DFS_NAME, 0644, NULL, NULL, &fops);
+	dfs = debugfs_create_file(OS_INTERCEPTOR_DFS_NAME, 0644, NULL, NULL, &fops);
 	if (!dfs) {
 		error("[ %s ] error creating debugfs entry : [ %s ]\n", 
 		      MODULE_NAME,
-		      KCONTROLLER_DFS_NAME);
+		      OS_INTERCEPTOR_DFS_NAME);
 
 		return -EINVAL;
 	} else
 	{
 		info("[ %s ]  debugfs file [ %s ] created for file operations\n" , 
 		     MODULE_NAME,
-		     KCONTROLLER_DFS_NAME);
+		     OS_INTERCEPTOR_DFS_NAME);
 	}
 
 	smp_mb();
@@ -272,7 +272,7 @@ static int __init kcontroller_init(void) {
 }
 
 
-static void __exit kcontroller_exit(void){
+static void __exit os_interceptor_exit(void){
   
 	int destroy_module_boot_process(void);
 
@@ -286,7 +286,7 @@ static void __exit kcontroller_exit(void){
 
 
 
-module_init(kcontroller_init);
-module_exit(kcontroller_exit);
+module_init(os_interceptor_init);
+module_exit(os_interceptor_exit);
 
 

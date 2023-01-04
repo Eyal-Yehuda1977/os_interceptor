@@ -1,4 +1,4 @@
-#include "kcontroller_data_type.h"
+#include "os_interceptor_data_type.h"
 
 
 #define SET_INTERVAL_JIFFIES(interval)		\

@@ -1,4 +1,4 @@
-#include "../kcontroller_data_type.h"
+#include "../os_interceptor_data_type.h"
 
 static DEFINE_HASHTABLE(h_process_cache,PRPCESS_CACHE_HASH_DISTRIBUTION);
 static DEFINE_SPINLOCK(s_lock);

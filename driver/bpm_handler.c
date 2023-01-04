@@ -1,4 +1,4 @@
-#include "kcontroller_data_type.h"
+#include "os_interceptor_data_type.h"
 
 
 
@@ -16,6 +16,7 @@ void _init_syscall_current_data(struct event_t* evt) {
 
 static inline __attribute__((always_inline)) 
 int _init_syscall_cache_data(struct event_t* evt) {
+
 
 	int ret=SUCCESS;
 	struct process_cache_node cache_node;

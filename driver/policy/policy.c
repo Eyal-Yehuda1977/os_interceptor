@@ -1,5 +1,5 @@
 #include "macros.h"
-#include "bpm.h"
+#include "policy.h"
 #include "hardening_policy.h"
 
 
@@ -24,7 +24,7 @@ int bpm_engine_load_hardening_policy(hp_rule_file_t *header, hp_rule_t* first_ru
 
 int bpm_engine_process(struct event_t* evt, struct bpm_result_t* result) {
 
-	// do BPM polcy process
+	// do polcy process
 
 	// do Hardening policy process
 	result->id=ATOMIC_LONG_INC(&message_cnt);

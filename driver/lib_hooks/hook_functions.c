@@ -1,48 +1,55 @@
-#include "../kcontroller_data_type.h"
-/*
-   AUTHOR : eyal yehuda 
-   system call stub handler to overrun systemcall table with our new system calls 
-   by parssing the stub region and searching for assembly instruction E8 "call"
-   after that the memory get patched with our new system call   
-*/
+#include "../os_interceptor_data_type.h"
 
-#include "../bpm/bpm.h"
 
-asmlinkage long (*orig_sys_execve_fn)(const char __user * filename,
-  				      const char __user * const __user * argv,
-				      const char __user * const __user * envp);
+#include "../policy/policy.h"
 
-asmlinkage long (*original_sys_read_fn)(unsigned int fd, char __user* buf, size_t count);
-asmlinkage long (*original_sys_write_fn)(unsigned int fd, const char __user *buf, size_t count);
+asmlinkage long (*orig_sys_execve_fn)(const char __user *filename,
+  				      const char __user *const __user *argv,
+				      const char __user *const __user *envp);
+
+asmlinkage long (*original_sys_read_fn)(unsigned int fd, 
+					char __user *buf, 
+					size_t count);
+
+asmlinkage long (*original_sys_write_fn)(unsigned int fd, 
+					 const char __user *buf, 
+					 size_t count);
+
 asmlinkage long (*original_sys_fork_fn)(void);
+
 asmlinkage long (*original_sys_clone_fn)(unsigned long chiled_stack,
                                          unsigned long flags,
-                                         int __user* child_tidptr,
-                                         int __user* parent_tidptr, 
+                                         int __user *child_tidptr,
+                                         int __user *parent_tidptr, 
                                          int xxx);
 
-asmlinkage long (*original_sys_connect_fn)(int fd, struct sockaddr __user* uservaddr, int addrlen);
+asmlinkage long (*original_sys_connect_fn)(int fd, 
+					   struct sockaddr __user *uservaddr, 
+					   int addrlen);
 
-asmlinkage long (*original_sys_open_fn)(int dfd,const char __user *filename,
-                                        int flags, umode_t mode);
+asmlinkage long (*original_sys_open_fn)(int dfd,
+					const char __user *filename,
+                                        int flags, 
+					umode_t mode);
 
 asmlinkage long (*original_sys_close_fn)(struct files_struct *files, unsigned fd);
+
 asmlinkage long (*original_sys_rename_fn)(int olddfd, const char __user *oldname,
                                           int newdfd, const char __user *newname,
           			          unsigned int flags);
 
 asmlinkage long (*original_sys_unlink_fn)(int dfd, const char __user *pathname);
 
-asmlinkage long (*original_sys_fchmodat_fn)(int dfd, const char __user * filename
-                                           ,unsigned int lookup_flags, struct path* path);
+asmlinkage long (*original_sys_fchmodat_fn)(int dfd, 
+					    const char __user *filename, 
+					    unsigned int lookup_flags, 
+					    struct path *path);
 
 asmlinkage long (*original_sys_group_exit_fn)(int error_code);
 
-asmlinkage long (*original_sys_truncate_fn)(const char __user *path
-                                           ,long length);
+asmlinkage long (*original_sys_truncate_fn)(const char __user *path, long length);
 
-asmlinkage long (*original_sys_ftruncate_fn)(unsigned int fd
-                                            ,unsigned long length);
+asmlinkage long (*original_sys_ftruncate_fn)(unsigned int fd, unsigned long length);
 
 
 
@@ -52,13 +59,15 @@ asmlinkage long (*original_sys_ftruncate_fn)(unsigned int fd
 
 
 
-static asmlinkage long new_sys_execve(const char __user * filename,
- 			              const char __user * const __user * argv,
-   			              const char __user * const __user * envp) 
+static asmlinkage long new_sys_execve(const char __user *filename,
+ 			              const char __user *const __user *argv,
+   			              const char __user *const __user *envp) 
 {
-	unsigned short spawn_log_in_relay=DO_NOT_SPAWN_LOG_IN_RELAY,
-                       prevent_system_call=PRIORITY_ALLOW_SYSTEM_CALL;
-        size_t exec_line_size=0, continue_process=ERROR;
+
+
+	unsigned short spawn_log_in_relay = DO_NOT_SPAWN_LOG_IN_RELAY,
+                       prevent_system_call = PRIORITY_ALLOW_SYSTEM_CALL;
+        size_t exec_line_size = 0, continue_process = ERROR;
         char* executable_file_path=NULL, *execve_args_str=NULL
              ,*executable_file_name=NULL;
       	char** p_argv = (char **)argv;

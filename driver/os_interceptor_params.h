@@ -1,5 +1,5 @@
-#ifndef __KCONTROLLER_PARAMS_
-#define __KCONTROLLER_PARAMS_
+#ifndef __OS_INTERCEPTOR_PARAMS_
+#define __OS_INTERCEPTOR_PARAMS_
 
 
 #include <stddef.h>
@@ -79,7 +79,7 @@
 #include "bpm_handler.h"
 #include "module_metadata.h"
 #include "cache_process_handler.h"
-#include "bpm/bpm.h"
+#include "policy/policy.h"
 #include "module_debug.h"
 #include "lib_network/network.h"
 
@@ -98,7 +98,7 @@
 #define RELAY_NAME_LOGGER                  "os_interceptor_logger"
 #define MODULE_NAME                        "os_interceptor"
 #define DEBUGFS_DIR                        "/sys/kernel/debug/"
-#define KCONTROLLER_DFS_NAME               "os_interceptor_dfs"
+#define OS_INTERCEPTOR_DFS_NAME            "os_interceptor_dfs"
 
 enum { events_relay = 0, logger_relay = 1 };
 
@@ -252,4 +252,5 @@ write_to_chan_format(RELAY_LOGGER_DEBUG,logger_relay,str,  ##__VA_ARGS__);\
 /* get base address of page in region */
 #define base_of_page(x) ((void*)((unsigned long)(x) & PAGE_MASK))
 
-#endif
+
+#endif  //__OS_INTERCEPTOR_PARAMS_

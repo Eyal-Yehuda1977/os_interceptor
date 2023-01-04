@@ -68,7 +68,7 @@ void __bpm_unlock(void);
 #define UNLOCK_BPM()                __bpm_unlock()
 #define SLEEP(num)       udelay(num)
 
-#include "../kcontroller_params.h"
+#include "../os_interceptor_data_type.h"
 
 #define LG_ERROR(str, ...) error("[bpm_engine2] " str, ##__VA_ARGS__)
 #define LG_INFO(str, ...) info("[bpm_engine2] " str, ##__VA_ARGS__)

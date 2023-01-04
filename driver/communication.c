@@ -1,4 +1,4 @@
-#include "kcontroller_data_type.h"
+#include "os_interceptor_data_type.h"
 
 
 
@@ -157,7 +157,7 @@ int cb_handshake_response(pid_t pid, const char *err) {
 
 	snprintf(res_t->handshake.fops_file_path, CONTROL_BUFFER_DEFAULT_SIZE, "%s/%s",
 		 DEBUGFS_DIR,
-		 KCONTROLLER_DFS_NAME); 
+		 OS_INTERCEPTOR_DFS_NAME); 
 
 	debug("[ %s ] nl_logic handshake response fops_file_path: [ %s ]", 
 	      MODULE_NAME,

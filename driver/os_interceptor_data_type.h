@@ -1,7 +1,7 @@
-#ifndef __KCONTROLLER_DATA_TYPE_H_
-#define __KCONTROLLER_DATA_TYPE_H_
+#ifndef __OS_INTERCEPTOR_DATA_TYPE_H_
+#define __OS_INTERCEPTOR_DATA_TYPE_H_
 
-#include "kcontroller_params.h"
+#include "os_interceptor_params.h"
 
 
 /*
@@ -278,7 +278,6 @@ const struct md5_data_t* retrieve_bpm_md5(void);
 			     ,current->comm);	\
 		}				\
 }
-#endif
 
 
 #define __hook_pid_(pid, func, ...){			\
@@ -297,3 +296,8 @@ const struct md5_data_t* retrieve_bpm_md5(void);
 
 #define __spawn_event_log_debug(evt,condition)		\
 	if( condition == SPAWN_LOG_IN_RELAY) dump_event(evt);
+
+
+
+
+#endif //__OS_INTERCEPTOR_DATA_TYPE_H_

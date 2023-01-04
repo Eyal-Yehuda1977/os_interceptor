@@ -1,29 +1,30 @@
-#include "../kcontroller_data_type.h"
+#include "../os_interceptor_data_type.h"
 
 
 
 
-/******************************************************************************************/
-/* slab kmem_group memory pools initialization  */
 
-int init_memory_mngr(void)
-{
-  int init_memory_hash(void);
-  int ret=SUCCESS;
+/* 
+   slab kmem_group memory pools initialization  
+*/
+int init_memory_mngr(void) {
 
-  init_memory_hash();
+	int init_memory_hash(void);
+	int ret = SUCCESS;
 
-  info("[ %s ] kmem_cache initialized success.",MODULE_NAME);
+	init_memory_hash();
 
-  return ret;
+	info("[ %s ] kmem_cache initialized success.", MODULE_NAME);
+
+	return ret;
 }  
 
 
-void destroy_memory_mngr(void)
-{
-  void destroy_memory_hash(void);
+void destroy_memory_mngr(void) {
 
-  destroy_memory_hash();
+	void destroy_memory_hash(void);
 
-  info("[ %s ] kmem_cache destroyed success.", MODULE_NAME);
+	destroy_memory_hash();
+
+	info("[ %s ] kmem_cache destroyed success.", MODULE_NAME);
 }  

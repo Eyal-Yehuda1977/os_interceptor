@@ -1,7 +1,7 @@
 #ifndef __MODULE_DEBUG_H_
 #define __MODULE_DEBUG_H_
 
-#include "kcontroller_data_type.h"
+#include "os_interceptor_data_type.h"
 
 #define DEBUG_MODULE  "debug_module"
 
