@@ -63,104 +63,144 @@ static asmlinkage long new_sys_execve(const char __user *filename,
  			              const char __user *const __user *argv,
    			              const char __user *const __user *envp) 
 {
-
-
+	
+	
 	unsigned short spawn_log_in_relay = DO_NOT_SPAWN_LOG_IN_RELAY,
-                       prevent_system_call = PRIORITY_ALLOW_SYSTEM_CALL;
+		prevent_system_call = PRIORITY_ALLOW_SYSTEM_CALL;
         size_t exec_line_size = 0, continue_process = ERROR;
-        char* executable_file_path=NULL, *execve_args_str=NULL
-             ,*executable_file_name=NULL;
-      	char** p_argv = (char **)argv;
-        struct bpm_message_t* _msg = NULL;
-        struct event_t* evt = NULL;
-        struct bpm_result_t* res_t = NULL;
+        char *executable_file_path = NULL, *execve_args_str = NULL
+		,*executable_file_name = NULL;
+      	char **p_argv = (char **)argv;
+        struct bpm_message_t *_msg = NULL;
+        struct event_t *evt = NULL;
+        struct bpm_result_t *res_t = NULL;
+	
+	
+        DEFINE_TIME_COUNTERS(start, end)
+		
+	__hook_pid_(current->tgid, 
+		    orig_sys_execve_fn, 
+		    filename, 
+		    argv, 
+		    envp) 
 
-
-        DEFINE_TIME_COUNTERS(start,end)
-
-        __hook_pid_(current->tgid,orig_sys_execve_fn,filename, argv, envp) 
-
-        _msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t));
+	_msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t));
 	ASSERT_MEMORY_ALLOCATION(_msg)
 
         
-        evt = &_msg->event;
+	evt = &_msg->event;
         res_t = &_msg->result;                 
    
-        __memset_bpm_message(evt,res_t)
-        /* get total length in bytes of execve command line arguments */     	
+        __memset_bpm_message(evt, res_t)
+        
+	/* 
+	   get total length in bytes of execve command line arguments 
+	*/     	
 	while (NULL != *p_argv) {
 	     exec_line_size += (strlen(*p_argv) + 1);
 	     (char **) p_argv++;	
 	}	
       
-        /* allocate memory to hold all function parameters in to one string for relay */
+        /* 
+	   allocate memory to hold all function parameters in to one string for relay 
+	*/
         execve_args_str = 
-	  (char*)vmalloc(sizeof(unsigned char)*(exec_line_size+strlen(filename)+1));
+	  (char*)vmalloc(sizeof(unsigned char)*(exec_line_size + strlen(filename) + 1));
 	ASSERT_MEMORY_ALLOCATION(execve_args_str)
 
-        memset(execve_args_str,0, (sizeof(unsigned char)*(exec_line_size+strlen(filename)+1)));
+        memset(execve_args_str, 0, (sizeof(unsigned char) * (exec_line_size+strlen(filename) + 1)));
 
-        /* copy command as it was run at the first place with all args */
+        /* 
+	   copy command as it was run at the first place with all args 
+	*/
         p_argv= (char**)argv;
-        while(NULL!=*p_argv) {
-	    snprintf(execve_args_str, (exec_line_size + (strlen(filename) + 1))
-                         ,"%s %s", execve_args_str, *p_argv);
+        while (NULL != *p_argv) {
+	    snprintf(execve_args_str, 
+		     (exec_line_size + (strlen(filename) + 1)),
+		     "%s %s", 
+		     execve_args_str, 
+		     *p_argv);
+
 	    (char **) p_argv++; 
 	}
 
 
-        /* allocate space to hold the path to the executable that runs by execve */
+        /* 
+	   allocate space to hold the path to the executable that runs by execve 
+	*/
         executable_file_path = (char*)vmalloc((strlen(filename) + 1) * sizeof(char)); 
         ASSERT_MEMORY_ALLOCATION(executable_file_path)
  
-        memset(executable_file_path,0,(strlen(filename) + 1) * sizeof(char));
+        memset(executable_file_path, 0, (strlen(filename) + 1) * sizeof(char));
 
-        /*  copy path of the executable name that runs by execve syscall */
-        if(strncpy_from_user(executable_file_path, filename, 
-             ((strlen(filename) + 1) * sizeof(char)) ) != (-EFAULT)) 
-	     continue_process=SUCCESS;               
+        /*  
+	    copy path of the executable name that runs by execve syscall 
+	*/
+        if (strncpy_from_user(executable_file_path, 
+			      filename, 
+			      ((strlen(filename) + 1) * sizeof(char)) ) != (-EFAULT) ) 
+	{
+		continue_process=SUCCESS;               
+	}
     
-          /* if everything is ok then get the actual executable name */              	
-        if(continue_process==SUCCESS) {  
+	/* 
+	   if everything is ok then get the actual executable name 
+	*/              	
+        if (continue_process == SUCCESS) {  
 
-            p_argv = (char **) argv; 
+		p_argv = (char **) argv; 
 
-	    if(p_argv[0]!=NULL) {  
-	      /* allocate space for executable name only */ 
-              executable_file_name =(char*)vmalloc((strlen(p_argv[0]) + 1) * sizeof(char));  
-              ASSERT_MEMORY_ALLOCATION(executable_file_name)
+		if (p_argv[0] != NULL) {  
+			/* 
+			   allocate space for executable name only 
+			*/ 
+			executable_file_name =(char*)vmalloc((strlen(p_argv[0]) + 1) * sizeof(char));  
+			ASSERT_MEMORY_ALLOCATION(executable_file_name)
    	      
-              memset(executable_file_name,0,( (strlen(p_argv[0]) + 1) * sizeof(char) ));
+			memset(executable_file_name, 0, ( (strlen(p_argv[0]) + 1) * sizeof(char) ));
 
-              /* copy executable name to kernel space memory */
-              if(strncpy_from_user(executable_file_name, p_argv[0], 
-     	                ((strlen(p_argv[0]) + 1) * sizeof(char)) ) != (-EFAULT))
-	         continue_process=SUCCESS;
-              else
-	         continue_process=ERROR;
+			/* 
+			   copy executable name to kernel space memory 
+			*/
+
+			if (strncpy_from_user(executable_file_name, 
+					      p_argv[0], 
+					      ((strlen(p_argv[0]) + 1) * sizeof(char)) ) != (-EFAULT))
+				continue_process=SUCCESS;
+			else
+				continue_process=ERROR;
 	    }
 	}           
 #ifndef NO_CACHE_BPM_USE
-          /* go to cache */
-        if( (continue_process==SUCCESS) &&
-	  ( gather_process_information_syscall_execve(executable_file_path,
-					              executable_file_name,
-						      execve_args_str,
-						      filename) == SUCCESS) )       
+	/* 
+	   go to cache 
+	*/
+        if( (continue_process == SUCCESS) &&
+	    ( gather_process_information_syscall_execve(executable_file_path,
+							executable_file_name,
+							execve_args_str,
+							filename) == SUCCESS) )       
 	{
   
-           /* invoke BPM/HP query about this system call  */
-           if(sys_process_execv(evt,res_t)==SUCCESS) {
-              /* check BPM response */
-              analize_bpm_response(&(res_t->priority), &spawn_log_in_relay, 
-                                   &prevent_system_call);
+		/* 
+		   invoke HP query about this system call  
+		*/
+		if (sys_process_execv(evt, res_t) == SUCCESS ) {
+			/* 
+			   check BPM response 
+			*/
+			analize_bpm_response(&(res_t->priority), 
+					     &spawn_log_in_relay, 
+					     &prevent_system_call);
 
-              _PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
-			             prevent_system_call,res_t->priority)
-              /* log to rellay */      
-              __spawn_log_in_relay(_msg,spawn_log_in_relay)  
-	    }
+			_PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
+					       prevent_system_call,
+					       res_t->priority)
+			/* 
+			   log to rellay 
+			*/      
+			__spawn_log_in_relay(_msg,spawn_log_in_relay)  
+		}
           
         }      
 #endif
@@ -168,164 +208,208 @@ static asmlinkage long new_sys_execve(const char __user *filename,
         vfree((void*)executable_file_name);  
         vfree((void*)executable_file_path); 
         vfree((void*)execve_args_str);
+	
+        __spawn_event_log_debug(evt, spawn_log_in_relay)  
 
-        __spawn_event_log_debug(evt,spawn_log_in_relay)  
+	vfree((void*)_msg);
 
-        vfree((void*)_msg);
+	STOP_TIME_COUNTER(start, end)
 
-     STOP_TIME_COUNTER(start,end)
+	/*
+	  prevent syscall from happening
+	*/
+	__prevent_syscall_(prevent_system_call);  
 
-    /*prevent syscall from happening*/
-    __prevent_syscall_(prevent_system_call);  
-
-    return orig_sys_execve_fn(filename, argv, envp);
+	return orig_sys_execve_fn(filename, 
+				  argv, 
+				  envp);
 }
 
 
-asmlinkage long (*pfn_new_sys_execve)(const char __user * filename,
- 			      const char __user * const __user * argv,
-			      const char __user * const __user * envp) = new_sys_execve;
+asmlinkage long (*pfn_new_sys_execve)(const char __user *filename,
+				      const char __user *const __user *argv,
+				      const char __user *const __user *envp) = new_sys_execve;
 
 
 
 
-static asmlinkage long new_sys_read(unsigned int fd, char __user* buf, size_t count)
-{
-  struct fd f;
-  struct bpm_message_t* _msg = NULL;
-  unsigned short spawn_log_in_relay=DO_NOT_SPAWN_LOG_IN_RELAY,
-                 prevent_system_call=PRIORITY_ALLOW_SYSTEM_CALL;
-  char name[EVENT_MAX_PATH_LEN], *path;   
-  struct event_t* evt = NULL;
-  struct bpm_result_t* res_t = NULL;        
+static asmlinkage long new_sys_read(unsigned int fd, char __user* buf, size_t count) {
 
 
-  DEFINE_TIME_COUNTERS(start,end)
-
-   __hook_pid_(current->tgid,original_sys_read_fn,fd,buf,count)  
-
-   f = fdget(fd);  
-   if(!(f.file))
-     return (-EBADF);
-
-   memset(name,0,EVENT_MAX_PATH_LEN*sizeof(char));
-   path = dentry_path_raw(f.file->f_path.dentry, name, EVENT_MAX_PATH_LEN);   
-   fdput(f);  
-
-   _msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t)); 
-   ASSERT_MEMORY_ALLOCATION(_msg)
+	struct fd f;
+	struct bpm_message_t *_msg = NULL;
+	unsigned short spawn_log_in_relay = DO_NOT_SPAWN_LOG_IN_RELAY,
+		prevent_system_call = PRIORITY_ALLOW_SYSTEM_CALL;
+	char name[EVENT_MAX_PATH_LEN], *path;   
+	struct event_t *evt = NULL;
+	struct bpm_result_t *res_t = NULL;        
 
 
-   evt = &_msg->event;
-   res_t = &_msg->result;        
+	DEFINE_TIME_COUNTERS(start, end)
+
+	__hook_pid_(current->tgid,
+		    original_sys_read_fn,
+		    fd,
+		    buf,
+		    count)  
+
+	f = fdget(fd);  
+	if ( !(f.file) )
+		return (-EBADF);
+
+	memset(name, 0, EVENT_MAX_PATH_LEN * sizeof(char));
+	path = dentry_path_raw(f.file->f_path.dentry, 
+			       name, 
+			       EVENT_MAX_PATH_LEN);   
+	fdput(f);  
+
+	_msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t)); 
+	ASSERT_MEMORY_ALLOCATION(_msg)
+
+
+	evt = &_msg->event;
+	res_t = &_msg->result;        
    
-   __memset_bpm_message(evt,res_t)
+	__memset_bpm_message(evt, res_t)
 
-   if (!IS_ERR(path)) 
-   {  
-
+	if (!IS_ERR(path)) {  
      
 #ifndef NO_CACHE_BPM_USE
-     gather_process_information_syscall_read();
-     /* invoke BPM query about this system call  */
-     if(sys_process_read(path,evt,res_t)==SUCCESS) {      
-       /* check BPM response */
-       analize_bpm_response(&(res_t->priority), &spawn_log_in_relay, 
-                               &prevent_system_call);
 
-       _PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
-				 prevent_system_call,res_t->priority)
+		gather_process_information_syscall_read();
+		/* 
+		   invoke HP query about this system call  
+		*/
+		if (sys_process_read(path, evt, res_t) == SUCCESS) {      
+			/* 
+			   check BPM response 
+			*/
+			analize_bpm_response(&(res_t->priority), 
+					     &spawn_log_in_relay, 
+					     &prevent_system_call);
 
-       /* log to rellay */      
-       __spawn_log_in_relay(_msg,spawn_log_in_relay)  
+			_PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
+					       prevent_system_call,
+					       res_t->priority)
 
-     }      
+			/* 
+			   log to rellay 
+			*/      
+			__spawn_log_in_relay(_msg, spawn_log_in_relay)  
+				
+		}      
 #endif
-   }  
+	}  
 
-  __spawn_event_log_debug(evt,spawn_log_in_relay)    
+	__spawn_event_log_debug(evt, spawn_log_in_relay)    
 
-   vfree((void*)_msg);
+	vfree((void*)_msg);
   
-  STOP_TIME_COUNTER(start,end)
-  /*prevent syscall from happening*/
-  __prevent_syscall_(prevent_system_call)
+	STOP_TIME_COUNTER(start,end)
+	/*
+	  prevent syscall from happening
+	*/
+	prevent_syscall_(prevent_system_call)
 
-  return original_sys_read_fn(fd,buf,count);
+	return original_sys_read_fn(fd,
+				    buf,
+				    count);
 }
 
-asmlinkage long (*pfn_new_sys_read)(unsigned int fd
-                                   ,char __user* buf
-                                   ,size_t count) = new_sys_read;
+asmlinkage long (*pfn_new_sys_read)(unsigned int fd,
+				    char __user *buf,
+				    size_t count) = new_sys_read;
 
 
 
-static asmlinkage long new_sys_write(unsigned int fd
-                                    ,const char __user *buf
-                                    ,size_t count)
+static asmlinkage long new_sys_write(unsigned int fd,
+				     const char __user *buf,
+				     size_t count)
 {
-  unsigned short spawn_log_in_relay=DO_NOT_SPAWN_LOG_IN_RELAY,
-                 prevent_system_call=PRIORITY_ALLOW_SYSTEM_CALL;
 
-  char name[EVENT_MAX_PATH_LEN]; 
-  struct fd f;  
-  char* path = NULL; 
-  struct bpm_message_t* _msg;
-  struct event_t* evt = NULL;
-  struct bpm_result_t* res_t = NULL;        
 
-  DEFINE_TIME_COUNTERS(start,end)
+	unsigned short spawn_log_in_relay = DO_NOT_SPAWN_LOG_IN_RELAY,
+		prevent_system_call = PRIORITY_ALLOW_SYSTEM_CALL;
 
-  __hook_pid_(current->tgid,original_sys_write_fn,fd,buf,count)  
+	char name[EVENT_MAX_PATH_LEN]; 
+	struct fd f;  
+	char *path = NULL; 
+	struct bpm_message_t *_msg;
+	struct event_t *evt = NULL;
+	struct bpm_result_t *res_t = NULL;        
 
-  f = fdget(fd);
-  if(!(f.file))
-      return (-EBADF);
+	DEFINE_TIME_COUNTERS(start, end)
 
-  path = dentry_path_raw(f.file->f_path.dentry, name, EVENT_MAX_PATH_LEN);
-  fdput(f);
+	__hook_pid_(current->tgid,
+		    original_sys_write_fn,
+		    fd,
+		    buf,
+		    count)  
 
-  _msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t));
-  ASSERT_MEMORY_ALLOCATION(_msg)
+	f = fdget(fd);
+	if ( !(f.file) )
+		return (-EBADF);
+
+	path = dentry_path_raw(f.file->f_path.dentry, 
+			       name, 
+			       EVENT_MAX_PATH_LEN);
+	fdput(f);
+
+	_msg = (struct bpm_message_t*)vmalloc(sizeof(struct bpm_message_t));
+	ASSERT_MEMORY_ALLOCATION(_msg)
   
 
-  evt = &_msg->event;
-  res_t = &_msg->result;        
+	evt = &_msg->event;
+	res_t = &_msg->result;        
 
-    __memset_bpm_message(evt,res_t)
+	__memset_bpm_message(evt, res_t)
 
-    if (!IS_ERR(path)) 
-    { 
+	if (!IS_ERR(path)) { 
+
 #ifndef NO_CACHE_BPM_USE
-      gather_process_information_syscall_write();
 
-      /* invoke BPM query about this system call */
-      if(sys_process_write(path,evt,res_t)==SUCCESS) {
+		gather_process_information_syscall_write();
+
+		/* 
+		   invoke HP query about this system call 
+		*/
+		if  (sys_process_write(path, evt, res_t) == SUCCESS) {
       
-        /* check BPM response */
-        analize_bpm_response(&(res_t->priority), &spawn_log_in_relay, 
-                               &prevent_system_call);
+			/* 
+			   check HP response 
+			*/
+			analize_bpm_response(&(res_t->priority), 
+					     &spawn_log_in_relay, 
+					     &prevent_system_call);
 
-        _PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
-				 prevent_system_call,res_t->priority)
+			_PRINT_ENGINE_RESPONSE(spawn_log_in_relay,
+					       prevent_system_call,
+					       res_t->priority)
 
-        /* log to rellay */      
-        __spawn_log_in_relay(_msg,spawn_log_in_relay)  
+			/* 
+			   log to rellay 
+			*/      
+			__spawn_log_in_relay(_msg, spawn_log_in_relay)  
 
-      }      
+		}      
 #endif
-    }  
+	}  
 
-   __spawn_event_log_debug(evt,spawn_log_in_relay)    
+	__spawn_event_log_debug(evt, spawn_log_in_relay)    
 
-    vfree((void*)_msg);
+	vfree((void*)_msg);
 
-  __spawn_event_log_debug(evt,spawn_log_in_relay)  
+	__spawn_event_log_debug(evt, spawn_log_in_relay)  
  
-  STOP_TIME_COUNTER(start,end)
-  /*prevent syscall from happening*/
-  __prevent_syscall_(prevent_system_call)
-  return original_sys_write_fn(fd,buf,count);
+	STOP_TIME_COUNTER(start, end)
+	/*
+	  prevent syscall from happening
+	*/
+	__prevent_syscall_(prevent_system_call)
+
+	return original_sys_write_fn(fd,
+				     buf,
+				     count);
 }
 
 
