@@ -14,7 +14,13 @@ Driver features
 3. Memory management, Slab allocator used for memory pool 
 
 
-
+Please notice 
+-------------
+1. This driver supports kernel version 3.10 only for now.
+2. u can track the driver using dmesg -W
+   or try to read from  : 
+   /sys/kernel/debug/os_interceptor_dfs
+   /sys/kernel/debug/os_interceptor_relay/cpu0 
 
 
 Thanks Eyal Yehuda
