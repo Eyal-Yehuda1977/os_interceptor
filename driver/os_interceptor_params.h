@@ -70,18 +70,18 @@
 #include <linux/rtc.h>
 #include <linux/posix-timers.h>
 
-#include "lib_crypto/crypto.h"
+#include "crypto/crypto.h"
 #include "../driver_shared/driver_api.h"
-#include "libudis86/types.h"
-#include "libudis86/extern.h"
-#include "libudis86/itab.h"
+#include "disassembler_x86/types.h"
+#include "disassembler_x86/extern.h"
+#include "disassembler_x86/itab.h"
 #include "relay_interface.h"
 #include "bpm_handler.h"
 #include "module_metadata.h"
 #include "cache_process_handler.h"
 #include "policy/policy.h"
 #include "module_debug.h"
-#include "lib_network/network.h"
+#include "network/network.h"
 
 
 /*

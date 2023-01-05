@@ -2,27 +2,27 @@ KDIR ?= /lib/modules/$(shell uname -r)/build
 BUILD_DIR ?= $(PWD)
 BUILD_DIR_MAKEFILE ?= $(BUILD_DIR)/Makefile
 
-NAME        := os_interceptor
-obj-m       := $(NAME).o
+NAME        		 := os_interceptor
+obj-m       		 := $(NAME).o
 
 policy-srcs              := policy/hardening_policy.o \
                             policy/policy.o \
                             policy/algorithm.o \
                             policy/utils.o
 
-lib_process-src          := lib_process/process_scan.o
-libudis86-srcs           := libudis86/decode.o \
-                            libudis86/itab.o \
-                            libudis86/udis86.o
+process-srcs             := process/process_scan.o
+disassembler_x86-srcs    := disassembler_x86/decode.o \
+                            disassembler_x86/itab.o \
+                            disassembler_x86/udis86.o
 
-lib_cache_process-srcs   := lib_cache_process/cache_process.o
-lib_hooks-srcs           := lib_hooks/syscall_stub.o \
-			    lib_hooks/hook_functions.o	
+cache_process-srcs       := cache_process/cache_process.o
+patching-srcs            := patching/syscall_stub.o \
+			    patching/hook_functions.o	
 
-lib_crypto-srcs          := lib_crypto/crypto.o 
-lib_network-srcs	 := lib_network/network.o
-lib_memory_mngr-srcs     := lib_memory_mngr/kmem_slab_pool.o \
-			    lib_memory_mngr/kmem_slab_pool_hash.o \
+crypto-srcs              := crypto/crypto.o 
+network-srcs	         := network/network.o
+memory_mngr-srcs         := memory_mngr/kmem_slab_pool.o \
+			    memory_mngr/kmem_slab_pool_hash.o \
 
 
 
@@ -37,30 +37,18 @@ $(NAME)-y    := main.o \
 		wq_task.o \
 		thread_task.o \
 		$(policy-srcs) \
-                $(libudis86-srcs) \
-                $(lib_cache_process-srcs) \
-		$(lib_process-src) \
-		$(lib_hooks-srcs) \
-		$(lib_crypto-srcs) \
-		$(lib_network-srcs) \
-		$(lib_memory_mngr-srcs)
+                $(disassembler_x86-srcs) \
+                $(cache_process-srcs) \
+		$(process-srcs) \
+		$(patching-srcs) \
+		$(crypto-srcs) \
+		$(network-srcs) \
+		$(memory_mngr-srcs)
 
 ccflags-y	 := -D__UD_STANDALONE__
 
-default: prepare-build
+default: 
 	make -C $(KDIR) M=$(shell realpath $(BUILD_DIR)) src=$(PWD) modules
-
-prepare-build:
-	mkdir -p "$(BUILD_DIR)"
-	mkdir -p "$(BUILD_DIR)/policy"
-	mkdir -p "$(BUILD_DIR)/libudis86"
-	mkdir -p "$(BUILD_DIR)/lib_cache_process"
-	mkdir -p "$(BUILD_DIR)/lib_process"
-	mkdir -p "$(BUILD_DIR)/lib_hooks"
-	mkdir -p "$(BUILD_DIR)/lib_crypto"
-	mkdir -p "$(BUILD_DIR)/lib_network"
-	mkdir -p "$(BUILD_DIR)/lib_memory_mngr"
-	touch "$(BUILD_DIR_MAKEFILE)"
 
 clean:
 	make -C $(KDIR) M=$(BUILD_DIR) src=$(PWD) clean
