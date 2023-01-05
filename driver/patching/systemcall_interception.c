@@ -1,19 +1,28 @@
 #include "../os_interceptor_data_type.h"
+#include "systemcall_interceptor.h"
+#include "../policy/policy.h"
+
+
 
 /*
    system call patch handler to overrun systemcall table with our new system calls 
 */
 
-#include "../policy/policy.h"
+
 
 extern int mem_patch_relative_call(unsigned long mem_addr, 
                                    size_t block_size, 
 				   unsigned long new_call_addr, 
                                    unsigned long *orig_call_addr);
 
-extern asmlinkage long (*orig_sys_execve_fn)(const char __user *filename,
-  				             const char __user *const __user *argv,
-  				             const char __user *const __user *envp);
+
+
+
+
+
+extern asmlinkage long (*original_sys_execve_fn)(const char __user * filename,
+						 const char __user * const __user * argv,
+						 const char __user * const __user * envp);
 
 extern asmlinkage long (*original_sys_read_fn)(unsigned int fd,
 					       char __user *buf,
@@ -44,7 +53,7 @@ extern asmlinkage long (*original_sys_close_fn)(struct files_struct *files ,unsi
 
 extern asmlinkage long (*original_sys_rename_fn)(int olddfd, 
 						 const char __user *oldname,
-					 int newdfd,
+						 int newdfd,
 						 const char __user *newname,
 						 unsigned int flags);
 
@@ -66,16 +75,131 @@ extern asmlinkage long (*original_sys_ftruncate_fn)(unsigned int fd, unsigned lo
 
 
 
+
+extern asmlinkage long (*pfn_new_sys_execve)(const char __user * filename,
+					     const char __user * const __user * argv,
+					     const char __user * const __user * envp);
+
+extern asmlinkage long (*pfn_new_sys_read)(unsigned int fd,
+					   char __user* buf,
+					   size_t count);
+
+extern asmlinkage long (*pfn_new_sys_write)(unsigned int fd,
+					    const char __user *buf,
+					    size_t count);
+
+extern asmlinkage long (*pfn_new_sys_connect)(int fd,
+					      struct sockaddr __user* uservaddr,
+					      int addrlen); 
+
+extern asmlinkage long (*pfn_new_sys_open)(const char __user *filename,
+					   int flags, 
+					   umode_t mode);
+
+extern asmlinkage long (*pfn_new_sys_close)(unsigned int fd);
+extern asmlinkage long (*pfn_new_sys_rename)(const char __user *oldname,
+					     const char __user *newname);
+
+extern asmlinkage long (*pfn_new_sys_unlink)(const char __user *pathname);
+
+extern asmlinkage long (*pfn_new_sys_fchmodat)(int dfd, 
+					       const char __user *filename,
+					       umode_t mode);
+
+extern asmlinkage long (*pfn_new_sys_exit_group)(int error_code);
+
+extern asmlinkage long (*pfn_new_sys_truncate)(const char __user *path,
+					       long length);
+
+extern asmlinkage long (*pfn_new_sys_ftruncate)(unsigned int fd,
+						unsigned long length);
+
+extern asmlinkage long (*pfn_new_sys_ptrace)(long request, 
+					     long pid, 
+					     unsigned long addr,
+					     unsigned long data);
+
+extern asmlinkage long (*pfn_new_sys_clone)(unsigned long chiled_stack, 
+					    unsigned long flags,
+					    int __user *child_tidptr,
+					    int __user *parent_tidptr,
+					    int xxx);
+
+extern asmlinkage long (*pfn_new_sys_fork)(void);
+
+
+
+
+
+static LIST_HEAD(sct_entry_list);
+struct sct_entry* sct_entry_vector[__NR_syscall_max];
+volatile unsigned char g_status = 0;
+
+
+/*
+   for each system call we patch we create an entry 
+*/
+
+static inline __attribute__((always_inline)) 
+int create_patch_entry(const int syscall_num) {
+
+	struct sct_entry *entry = NULL;
+
+	entry = (struct sct_entry*)vmalloc(sizeof(struct sct_entry));
+	if ( IS_ERR_OR_NULL(entry) ) {	
+
+		error("memory allocation error. ");
+		return (-ERROR);		
+	}
+
+	memset(entry, 0, sizeof(struct sct_entry));
+
+	entry->s_lock = __SPIN_LOCK_UNLOCKED(entry->s_lock);
+	entry->syscall_num = syscall_num;	
+	list_add(&(entry->list), &sct_entry_list);
+	sct_entry_vector[syscall_num] = entry;
+
+
+	return (SUCCESS);
+}
+
+
+/*
+  we wait here that all calls on a system call which are stack segments
+  will terminate, once counter is zero we free to unpatch a system call   
+ */
+static inline __attribute__((always_inline)) 
+void wait_on_patch_entry_counter(const int syscall_num) {
+
+	struct sct_entry *entry = NULL;
+
+	entry = sct_entry_vector[syscall_num];
+	if (entry) {
+		while (!__sync_bool_compare_and_swap(&(entry->syscall_counter), 0, 0));
+        }
+}
+
+
+
+/*
+  For the range of kernel versions between 3.10 to 4.17 the folowing system calles :
+  execve, fork and clone, have a stub inside their offset in system call table
+  we need to address this with disassembler instead of overriting the entry 
+  relative offset
+*/
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0) && LINUX_VERSION_CODE <= KERNEL_VERSION(4,17,0))
+
 static int patch_sys_execve(unsigned long sys_call_table_addr) {
 
-
-        extern asmlinkage long (*pfn_new_sys_execve)(const char __user * filename,
-						     const char __user * const __user * argv,
-						     const char __user * const __user * envp);
         int ret = SUCCESS;
-	unsigned long orig_stub_execve_addr, orig_call_addr;
-	
-	orig_stub_execve_addr = ((unsigned long * ) (sys_call_table_addr))[__NR_execve];
+
+	unsigned long orig_stub_execve_addr = 0, orig_call_addr = 0;
+
+	ret = create_patch_entry( __NR_execve );
+	ASSERT_RETURN_VALUE(ret, (-ERROR))
+
+	orig_stub_execve_addr = ((unsigned long*)(sys_call_table_addr))[ __NR_execve ];
 
 	ret = mem_patch_relative_call(orig_stub_execve_addr,
 				      MAX_RELATIVE_CALL_OFFSET,
@@ -83,23 +207,35 @@ static int patch_sys_execve(unsigned long sys_call_table_addr) {
 				      &orig_call_addr);
 
 	if (ret == SUCCESS ) {
-		orig_sys_execve_fn = (void*) orig_call_addr;
+		original_sys_execve_fn = (void*) orig_call_addr;
 	}
         
-        debug("[ %s ]  system call table address __NR_execve patched .", MODULE_NAME);
+	debug("[ %s ] syscall __NR_execve patched. orig address: [ %p ] " \
+	      "new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)original_sys_execve_fn,
+	      (void*)pfn_new_sys_execve);
 
 
 	return ret;
+
+
 }
 
 
+#else  /*
+	 all versions above 4.17, the system calles execve, fork and clone can be patched
+	 by modifying the relative offsets directly
+	*/
+
+
+
+
+
+#endif
 
 static int patch_sys_read(unsigned long sys_call_table_addr) {
 
-
-        extern asmlinkage long (*pfn_new_sys_read)(unsigned int fd,
-						   char __user *buf,
-						   size_t count);
 
         int ret = SUCCESS;
 	unsigned long orig_stub_read_addr, orig_call_addr;
@@ -123,10 +259,6 @@ static int patch_sys_read(unsigned long sys_call_table_addr) {
 
 static int patch_sys_write(unsigned long sys_call_table_addr) {
     
-        extern asmlinkage long (*pfn_new_sys_write)(unsigned int fd,
-						    const char __user *buf,
-						    size_t count);
-
         int ret = SUCCESS;
 	unsigned long orig_stub_write_addr, orig_call_addr;
 
@@ -150,8 +282,6 @@ static int patch_sys_write(unsigned long sys_call_table_addr) {
 
 static int patch_sys_fork(unsigned long sys_call_table_addr) {
 
-
-        extern asmlinkage long (*pfn_new_sys_fork)(void);
 
         int ret = SUCCESS;
 	unsigned long orig_stub_fork_addr ,orig_call_addr;
@@ -179,12 +309,6 @@ static int patch_sys_fork(unsigned long sys_call_table_addr) {
 static int patch_sys_clone(unsigned long sys_call_table_addr) {
 
 
-        extern asmlinkage long (*pfn_new_sys_clone)(unsigned long chiled_stack, 
-                                                    unsigned long flags,
-                                                    int __user *child_tidptr,
-                                                    int __user *parent_tidptr,
-                                                    int xxx);
-
         int ret = SUCCESS;
 	unsigned long orig_stub_clone_addr, orig_call_addr;
 
@@ -207,10 +331,6 @@ static int patch_sys_clone(unsigned long sys_call_table_addr) {
 
 
 static int patch_sys_connect(unsigned long sys_call_table_addr) {
-
-        extern asmlinkage long (*pfn_new_sys_connect)(int fd, 
-						      struct sockaddr __user *uservaddr,
-						      int addrlen); 
 
         int ret = SUCCESS;
 	unsigned long orig_stub_connect_addr, orig_call_addr;
@@ -236,11 +356,6 @@ static int patch_sys_connect(unsigned long sys_call_table_addr) {
 static int patch_sys_open(unsigned long sys_call_table_addr) {
 
 
-        extern asmlinkage long (*pfn_new_sys_open)(int dfd,
-						   const char __user *filename,
-						   int flags, 
-						   umode_t mode);
-
         int ret = SUCCESS;
 	unsigned long orig_stub_open_addr, orig_call_addr;
 
@@ -263,9 +378,6 @@ static int patch_sys_open(unsigned long sys_call_table_addr) {
 
 
 static int patch_sys_close(unsigned long sys_call_table_addr) {
-
-
-        extern asmlinkage long (*pfn_new_sys_close)(struct files_struct *files, unsigned fd);
 
 
         int ret = SUCCESS;
@@ -292,11 +404,6 @@ static int patch_sys_close(unsigned long sys_call_table_addr) {
 static int patch_sys_rename(unsigned long sys_call_table_addr) {
 
 
-        extern asmlinkage long (*pfn_new_sys_rename)(int olddfd,
-						     const char __user *oldname,
-						     int newdfd,
-						     const char __user *newname,
-						     unsigned int flags);
         int ret = SUCCESS;
 	unsigned long orig_stub_rename_addr, orig_call_addr;
 
@@ -318,8 +425,6 @@ static int patch_sys_rename(unsigned long sys_call_table_addr) {
 }
 
 static int patch_sys_unlink(unsigned long sys_call_table_addr) {
-
-        extern asmlinkage long (*pfn_new_sys_unlink)(int dfd, const char __user *pathname);
 
         int ret = SUCCESS;
 	unsigned long orig_stub_unlink_addr, orig_call_addr;
@@ -344,12 +449,6 @@ static int patch_sys_unlink(unsigned long sys_call_table_addr) {
 
 
 static int patch_sys_fchmodat(unsigned long sys_call_table_addr) {
-
-
-        extern asmlinkage long (*pfn_new_sys_fchmodat)(int dfd,
-						       const char __user *filename,
-						       unsigned int lookup_flags,
-						       struct path *path);
 
         int ret = SUCCESS;
 	unsigned long orig_stub_fchmodat_addr, orig_call_addr;
@@ -376,9 +475,6 @@ static int patch_sys_fchmodat(unsigned long sys_call_table_addr) {
 static int patch_sys_group_exit(unsigned long sys_call_table_addr) {
 
 
-
-	extern asmlinkage long (*pfn_new_sys_exit_group)(int error_code);
-
 	int ret = SUCCESS;
 	unsigned long orig_stub_group_exit_addr, orig_call_addr;
 	
@@ -402,8 +498,6 @@ static int patch_sys_group_exit(unsigned long sys_call_table_addr) {
 
 static int patch_sys_truncate(unsigned long sys_call_table_addr) {
 
-	extern asmlinkage long (*pfn_new_sys_truncate)(const char __user *path, long length);
-
 	int ret = SUCCESS;
 	unsigned long orig_stub_truncate_addr, orig_call_addr;
 	
@@ -426,8 +520,6 @@ static int patch_sys_truncate(unsigned long sys_call_table_addr) {
 static int patch_sys_ftruncate(unsigned long sys_call_table_addr) {
 
 
-	extern asmlinkage long (*pfn_new_sys_ftruncate)(const char __user *path ,long length);
-	
 	int ret = SUCCESS;
 	unsigned long orig_stub_ftruncate_addr, orig_call_addr;
 
@@ -462,7 +554,7 @@ static void unpatch_sys_execve(unsigned long sys_call_table_addr) {
 
 	mem_patch_relative_call(orig_stub_execve_addr,
 				MAX_RELATIVE_CALL_OFFSET,
-				(unsigned long) orig_sys_execve_fn, 
+				(unsigned long) original_sys_execve_fn, 
 				NULL);
 	
         debug("[ %s ]  system call table address __NR_execve unpatched .", MODULE_NAME);

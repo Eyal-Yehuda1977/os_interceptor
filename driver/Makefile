@@ -16,8 +16,8 @@ disassembler_x86-srcs    := disassembler_x86/decode.o \
                             disassembler_x86/udis86.o
 
 cache_process-srcs       := cache_process/cache_process.o
-patching-srcs            := patching/syscall_stub.o \
-			    patching/hook_functions.o	
+patching-srcs            := patching/systemcall_interception.o \
+			    patching/patched_functions.o	
 
 crypto-srcs              := crypto/crypto.o 
 network-srcs	         := network/network.o

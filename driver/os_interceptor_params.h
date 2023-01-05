@@ -149,6 +149,15 @@ enum { events_relay = 0, logger_relay = 1 };
 	}
 
 
+#define ASSERT_RETURN_VALUE(x,y)\
+{\
+	if(x==y)\
+	{\
+		return (-ERROR);\
+	}\
+}
+
+
 /*
   Print stack trace for debugging
 */
@@ -174,8 +183,8 @@ enum { events_relay = 0, logger_relay = 1 };
 #define RELAY_LOGGER_DEBUG                3  
 
 
-void write_to_chan_format(unsigned char log_level,unsigned int relay_channel_idx
-			  ,const char* fmt, ... );
+void write_to_chan_format(unsigned char log_level, unsigned int relay_channel_idx,
+			  const char* fmt, ... );
 
 short logger_param(void);
 short events_debug(void);
@@ -184,58 +193,66 @@ short events_debug(void);
 #define write_to_chan_events(buf, length)\
 write_to_chan(buf, length,events_relay);
 
-#define error(str,...)\
-  do{\
-  if(logger_param()==NO_RELAY_LOGGER)\
-    printk(KERN_ERR  str"  %s:%3d  "  ,##__VA_ARGS__,__FILE__,__LINE__);\
-  else if(!(logger_param() < RELAY_LOGGER_ERR))\
-    write_to_chan_format(RELAY_LOGGER_ERR,logger_relay,str,  ##__VA_ARGS__);\
-  }while(0)						   
+#define error(str,...)				\
+	do {					\
+		if (logger_param() == NO_RELAY_LOGGER)			\
+			printk(KERN_ERR  str"  %s:%3d  "  , ##__VA_ARGS__, __FILE__, __LINE__); \
+		else if (!(logger_param() < RELAY_LOGGER_ERR))		\
+			write_to_chan_format(RELAY_LOGGER_ERR, logger_relay, str, ##__VA_ARGS__); \
+	} while(0)						   
 
-#define info(str,...)\
-  do{\
-  if(logger_param()==NO_RELAY_LOGGER)\
-    printk(KERN_INFO  str ,##__VA_ARGS__);\
-  else if(!(logger_param()<RELAY_LOGGER_INFO))\
-    write_to_chan_format(RELAY_LOGGER_INFO,logger_relay,str,  ##__VA_ARGS__); \
-  }while(0)						   
+#define info(str,...)							\
+	do {								\
+		if (logger_param() == NO_RELAY_LOGGER)			\
+			printk(KERN_INFO  str ,##__VA_ARGS__);		\
+		else if (!(logger_param() < RELAY_LOGGER_INFO))		\
+			write_to_chan_format(RELAY_LOGGER_INFO, logger_relay, str, ##__VA_ARGS__); \
+	} while(0)						   
 
 #ifdef DEBUG_MODE_PRINT  // only for kernel dmesg
-#define debug(str,...)\
-  do{\
-  if(logger_param()==NO_RELAY_LOGGER)\
-    printk(KERN_DEBUG str"  %s:%3d " ,##__VA_ARGS__,__FILE__,__LINE__);\
-  else if(!(logger_param()<RELAY_LOGGER_DEBUG))\
-    write_to_chan_format(RELAY_LOGGER_DEBUG,logger_relay,str,  ##__VA_ARGS__);\
-  }while(0)						   
+#define debug(str,...)							\
+	do {								\
+		if (logger_param() == NO_RELAY_LOGGER)			\
+			printk(KERN_DEBUG str"  %s:%3d " ,##__VA_ARGS__,__FILE__,__LINE__); \
+		else if (!(logger_param() < RELAY_LOGGER_DEBUG))	\
+			write_to_chan_format(RELAY_LOGGER_DEBUG, logger_relay, str, ##__VA_ARGS__); \
+	} while(0)						   
 
 #else
 
-#define debug(str,...)\
-do{ if(!(logger_param()<RELAY_LOGGER_DEBUG))\
-write_to_chan_format(RELAY_LOGGER_DEBUG,logger_relay,str,  ##__VA_ARGS__);\
-}while(0)
+#define debug(str,...)							\
+	do {								\
+		if (!(logger_param()<RELAY_LOGGER_DEBUG))		\
+			write_to_chan_format(RELAY_LOGGER_DEBUG, logger_relay, str, ##__VA_ARGS__); \
+	} while(0)
 #endif
 
 
-#define _PRINT_ENGINE_RESPONSE(spawn_log_in_relay,prevent_system_call,priority)\
-  debug("[ %s ] after analize_bpm_response() spawn_log_in_relay: [ %d ]" \
-	"prevent_system_call: [ %d ] priority [ %d ] ", MODULE_NAME	\
-	,spawn_log_in_relay,prevent_system_call,priority);
+#define _PRINT_ENGINE_RESPONSE(spawn_log_in_relay, prevent_system_call, priority) \
+	debug("[ %s ] after analize_bpm_response() spawn_log_in_relay: [ %d ]" \
+	      "prevent_system_call: [ %d ] priority [ %d ] ",		\
+	      MODULE_NAME,						\
+	      spawn_log_in_relay,					\
+	      prevent_system_call,					\
+	      priority);
 
 
 
-/* page allocation definition */
+/* 
+   page allocation definition 
+*/
 #ifndef VM_RESERVED
 # define VM_RESERVED (VM_DONTEXPAND | VM_DONTDUMP)
 #endif
 
 
-/* conver ipv4/6 to string macro  */
-#define NIPQUAD(addr) \
-	  ((unsigned char *)&addr)[0], \
-	    ((unsigned char *)&addr)[1], \
-	    ((unsigned char *)&addr)[2], \
+/* 
+   conver ipv4/6 to string macro  
+*/
+#define NIPQUAD(addr)				\
+	    ((unsigned char *)&addr)[0],	\
+	    ((unsigned char *)&addr)[1],	\
+	    ((unsigned char *)&addr)[2],        \
 	    ((unsigned char *)&addr)[3]
 
 #define NIP6(addr) \
@@ -249,7 +266,9 @@ write_to_chan_format(RELAY_LOGGER_DEBUG,logger_relay,str,  ##__VA_ARGS__);\
 	    ntohs((addr).s6_addr16[7])
 
 
-/* get base address of page in region */
+/* 
+   get base address of page in region 
+*/
 #define base_of_page(x) ((void*)((unsigned long)(x) & PAGE_MASK))
 
 

@@ -3,9 +3,9 @@
 
 #include "../policy/policy.h"
 
-asmlinkage long (*orig_sys_execve_fn)(const char __user *filename,
-  				      const char __user *const __user *argv,
-				      const char __user *const __user *envp);
+asmlinkage long (*original_sys_execve_fn)(const char __user *filename,
+					  const char __user *const __user *argv,
+					  const char __user *const __user *envp);
 
 asmlinkage long (*original_sys_read_fn)(unsigned int fd, 
 					char __user *buf, 
@@ -79,7 +79,7 @@ static asmlinkage long new_sys_execve(const char __user *filename,
         DEFINE_TIME_COUNTERS(start, end)
 		
 	__hook_pid_(current->tgid, 
-		    orig_sys_execve_fn, 
+		    original_sys_execve_fn, 
 		    filename, 
 		    argv, 
 		    envp) 
@@ -220,9 +220,9 @@ static asmlinkage long new_sys_execve(const char __user *filename,
 	*/
 	__prevent_syscall_(prevent_system_call);  
 
-	return orig_sys_execve_fn(filename, 
-				  argv, 
-				  envp);
+	return original_sys_execve_fn(filename, 
+				      argv, 
+				      envp);
 }
 
 
