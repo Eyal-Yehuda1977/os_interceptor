@@ -42,21 +42,21 @@ int relay_channels_initialize(void) {
 
 int module_boot_process_stop_machine(void *p) {
 	
-	int init_stub_systcall(void);
+	int init_patch_systcall_table(void);
 
-	init_stub_systcall();   
+	init_patch_systcall_table();   
   
 	return 0;
 }
 
 
-int module_destroy_process_stop_machine(void* p) {
+int module_destroy_process_stop_machine(void *p) {
 
-  int destroy_stub_systcall(void);
+	int destroy_patched_systcall_table(void);
+	
+	destroy_patched_systcall_table();
 
-  destroy_stub_systcall();
-
-  return 0;
+	return 0;
 }
 
 

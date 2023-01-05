@@ -309,11 +309,12 @@ static asmlinkage long new_sys_read(unsigned int fd, char __user* buf, size_t co
 	/*
 	  prevent syscall from happening
 	*/
-	prevent_syscall_(prevent_system_call)
+	__prevent_syscall_(prevent_system_call)
 
 	return original_sys_read_fn(fd,
 				    buf,
 				    count);
+
 }
 
 asmlinkage long (*pfn_new_sys_read)(unsigned int fd,
