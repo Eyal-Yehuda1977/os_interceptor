@@ -174,7 +174,7 @@ enum { events_relay = 0, logger_relay = 1 };
   }
 
 
-//#define DEBUG_MODE_PRINT 
+#define DEBUG_MODE_PRINT 
 
 
 #define NO_RELAY_LOGGER                   0

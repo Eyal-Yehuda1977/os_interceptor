@@ -561,21 +561,20 @@ int __kernel__file_info(const char *task_path, const unsigned char algo
 {
 
 
-	char *file_buffer=NULL;
+	char *file_buffer = NULL;
  
 	mm_segment_t fs;
 	struct kstat stat;
-	struct file *_file;
+	struct file *_file = NULL;
 	umode_t mode = S_IFREG|0644;
 	int flags = O_RDONLY, ret = ERROR;     
 	char file_identifyer[SHA1_LENGTH];    
 
-
-	_file = NULL;
  
 	debug("[ %s ]  task_path %s", MODULE_NAME, task_path); 
 
-	if ( force_o_largefile() ) flags |= O_LARGEFILE;
+	if ( force_o_largefile() ) 
+		flags |= O_LARGEFILE;
 
 	_file = filp_open(task_path, flags, mode);
     
@@ -590,20 +589,23 @@ int __kernel__file_info(const char *task_path, const unsigned char algo
 
 		file_buffer = vmalloc(stat.size * sizeof(char));
 		if (!file_buffer) {
+
 			ret = ERROR;
 			pr_err("memory allocation error in function  [ %s ]  file [ %s ]" \
 			       " line [ %d ]\n", __func__, __FILE__, __LINE__ ); \
+
 			filp_close(_file,NULL);
 			set_fs(fs);
+
 			return ret;
 		}
 
-		f_inf->file_size= stat.size;
+		f_inf->file_size = stat.size;
 
 		memset(file_buffer, 0, stat.size * sizeof(char));
 		_file->f_op->read(_file, file_buffer, stat.size, &_file->f_pos);
 		set_fs(fs);
-		filp_close(_file,NULL);   
+		filp_close(_file, NULL);   
 
 		memset(file_identifyer, 0, SHA1_LENGTH);
 

@@ -1,81 +1,23 @@
 #include "os_interceptor_data_type.h"
-
-static unsigned long *find_sys_call_table_ref(u8 *code) {
-
-	size_t i;
-
-	for (i = 0; i < 256; i++)  //0xFF14c5****48894424
-	{
-#ifdef CONFIG_X86_64
-		if (code[i + 0] == 0xFF && code[i + 1] == 0x14 && code[i + 2] == 0xC5 && code[i + 7] == 0x48 &&
-		    code[i + 8] == 0x89 && code[i + 9] == 0x44 && code[i +10] == 0x24)
-		{
-			u32 offset = *((u32*) &code[i + 3]);
-			debug("syscall table address  %p\n", ((unsigned long*) (0xFFFFFFFF00000000 | offset)));
-			return (unsigned long*) (0xFFFFFFFF00000000 | offset);  // 0xFFFFFFFF***** syscall table address 
-		}
-#else
-		if (code[i + 0] == 0xFF && code[i + 1] == 0x14 && code[i + 2] == 0x85 && code[i + 7] == 0x89 &&
-		    code[i + 8] == 0x44 && code[i + 9] == 0x24) 
-		{
-			u32 offset = *((u32*) &code[i + 3]);
-			return (unsigned long*) offset;
-		}
-#endif
-	}
-
-	return NULL;
-}
-
-static inline u8 *get_64bit_system_call_handler(void) {
-
-  u64 system_call_entry;
-  rdmsrl(MSR_LSTAR, system_call_entry);
-  return (u8*) system_call_entry;
-
-}
-
-
-static inline u8 *get_32bit_system_call_handler(void) {
-
-  struct desc_ptr interrupt_descriptor_table;
-  gate_desc *interrupt_gates;
-
-  store_idt(&interrupt_descriptor_table);
-  interrupt_gates = (gate_desc*) interrupt_descriptor_table.address;
-
-  return (u8*) gate_offset(interrupt_gates[IA32_SYSCALL_VECTOR]);
-
-}
+#include "patching/systemcall_interception.h"
 
 
 
-unsigned long *locate_sys_call_table(void) {
 
-#ifdef CONFIG_X86_64
-	return find_sys_call_table_ref(get_64bit_system_call_handler());
-#else
-	return find_sys_call_table_ref(get_32bit_system_call_handler());
-#endif
-
-}
-
-
-
-/* change pemision flags in pte so memory become writeble  */
+/* 
+   change pemision flags in pte (page table entry)  so memory become writeble  
+*/
 int mem_make_rw(unsigned long addr) {
-
 
 	int ret = SUCCESS;
 	pte_t *pte;
 	unsigned int level;
 
 	pte = lookup_address(addr, &level);
-	if (NULL == pte) 
-	{
+	if (NULL == pte) {
 		ret = ERROR;	
 	} else if (0 == (pte->pte & _PAGE_RW)) 
-	{ /* Add read & write permissions if needed */
+	{ /* Add read & write permissions */
 		pte->pte |= _PAGE_RW;
 	}
 
@@ -101,7 +43,7 @@ long mem_find_insntruction_offset(unsigned long mem_addr, size_t block_size, int
 	return ERROR;
 }
 
-
+#if 0 
 /*  get the new hack sys call and patch the original with it 
     and save the original address to put back things when module is unloded  */
 int mem_patch_relative_call(unsigned long mem_addr, size_t block_size, unsigned long new_call_addr,
@@ -144,38 +86,101 @@ int mem_patch_relative_call(unsigned long mem_addr, size_t block_size, unsigned 
 
 	return ret;
 }
+#endif
 
 
-
-int obtain_sys_call_table_addr(unsigned long *sys_call_table_addr) {
-
+/*  get the new hack sys call and patch the original with it 
+ *  and save the original address to put back things when module is unloded  
+*/
+int mem_patch_relative_call(unsigned long mem_addr,
+			    size_t block_size,
+			    unsigned long new_call_addr,
+			    unsigned long *orig_call_addr) 
+{
 
 	int ret = SUCCESS;
-	unsigned long temp_sys_call_table_addr;
-	
-	/*
-	  look up for syetem call table address
+	long call_insn_offset = 0, call_insn_addr = 0, call_relative_val = 0, 
+		new_call_relative_val = 0;
+
+
+	/* 
+	 * Find the relative call instruction (E8) offset. this for x86 only !!! 
 	 */
-	temp_sys_call_table_addr = kallsyms_lookup_name(SYM_SYS_CALL_TABLE);
+	call_insn_offset = mem_find_insntruction_offset(mem_addr,
+							block_size, 
+							UD_Icall, 
+							RELATIVE_CALL_SIZE);	
+	if ( ERROR == call_insn_offset ) {
 
+		error("[ %s ] error patching the relative call address."\
+		      " instruction was not found\n", 
+		      MODULE_NAME);
 
-	debug("syscall table address  %p\n", sys_call_table_addr);
-
-	/* Return error if the symbol doesn't exist */
-	if (0 == sys_call_table_addr) {
 		ret = ERROR;
 	} else
 	{
-		*sys_call_table_addr = temp_sys_call_table_addr;
-	}
+		/* 
+		   Calculate the call instruction address 
+		*/
+		call_insn_addr = (mem_addr + call_insn_offset);    
+		call_relative_val = (*((int *) (call_insn_addr + 1)));
 
+		/* 
+		   Calculate the relative value for calling the system call offset 
+		*/
+		new_call_relative_val = ((unsigned long) new_call_addr - call_insn_addr 
+					 - RELATIVE_CALL_SIZE);
+  
+		/* 
+		   Save the address of the original system call 
+		*/
+		if ( NULL != orig_call_addr ) {
+
+			*orig_call_addr = call_insn_addr + RELATIVE_CALL_SIZE 
+				+ call_relative_val;
+		}
+
+
+		enable_kernel_write();
+		/* 
+		   patch 
+		*/
+		(*((int*)(call_insn_addr + 1))) = (int) new_call_relative_val;
+		
+		disable_kernel_write();
+	}        
 
 	return ret;
 }
 
 
-/*  make the page which holds syscall table adress writble . instead of changing pemissions 
-we map its virtual address to new page with out permissions */
+/*
+  look up for syetem call table address
+*/
+int lookup_sys_call_table_addr(unsigned long *sys_call_table_addr) {
+
+	int ret = SUCCESS;
+	unsigned long temp_sys_call_table_addr;
+	
+	temp_sys_call_table_addr = kallsyms_lookup_name(SYM_SYS_CALL_TABLE);
+
+	debug("syscall table address  %p\n", sys_call_table_addr);
+
+	/* 
+	   Return error if the symbol doesn't exist 
+	*/
+	if (0 == sys_call_table_addr) 
+		ret = ERROR;
+	else	
+		*sys_call_table_addr = temp_sys_call_table_addr;
+
+	return ret;
+}
+
+
+/*  
+    pages buuffer will point to original system call table pages
+ */
 static int enumerate_pages(void *region, struct page *pages[], size_t page_num) {
 
 
@@ -183,9 +188,7 @@ static int enumerate_pages(void *region, struct page *pages[], size_t page_num) 
 	void *page_addr = base_of_page(region);
 
 	for (i = 0; i < page_num; i++) {
-		/* 
-		   check if we can treat it as module so we can use it as page 
-		*/
+
 		if (__module_address((unsigned long) page_addr)) {
 			pages[i] = vmalloc_to_page(page_addr);
 		} else 
@@ -205,45 +208,88 @@ static int enumerate_pages(void *region, struct page *pages[], size_t page_num) 
 
 
 
-void *remap_with_write_permissions(void *region, size_t len) {
+static void *remap_with_write_permissions(void *region, size_t len) {
 
 
-	unsigned short res = SUCCESS;
-	void *writeable_region;
-	size_t page_num = DIV_ROUND_UP(offset_in_page(region) + len, PAGE_SIZE);
-	struct page **pages = kmalloc(page_num * sizeof(*pages), GFP_KERNEL);
+	void *writeable_region = NULL;
+	size_t page_num = 0;
+	struct page **pages = NULL;
 
-	if (!pages) 
-		res = ERROR;
-	
-	/* 
-	   retrive back the system call table with out its permissions 
-	*/
-	if ( (res == SUCCESS) && enumerate_pages(region, pages, page_num)) 
-		res=ERROR;
-    
-	if (res == SUCCESS) {
-		
-		writeable_region = vmap(pages, page_num, VM_MAP, PAGE_KERNEL);
-		if (!writeable_region) 
-			res = ERROR;
-   
-		kfree(pages);
-		/* 
-		   return back writble memory region offset 
-		*/
-		if (res == SUCCESS) 
-			return writeable_region + offset_in_page(region);
+	page_num = DIV_ROUND_UP(offset_in_page(region) + len, PAGE_SIZE);
+	pages  = kmalloc(page_num * sizeof(*pages), GFP_KERNEL);
+
+	if( IS_ERR_OR_NULL(pages) ) {	
+		error("[ %s ] memory allocation error. ", MODULE_NAME);
+		return NULL;
 	}
-  
+
+
+	if ( enumerate_pages(region, pages, page_num) ) {
+		error("[ %s ] enumerate_pages() error. ", MODULE_NAME);
+		goto err;
+	}
+
+	writeable_region = vmap(pages, page_num, VM_MAP, PAGE_KERNEL); 
+	if ( !writeable_region ) {
+		error("[ %s ] vmap() error. ", MODULE_NAME);
+		goto err;
+	}
+
 	kfree(pages);
+	return writeable_region + offset_in_page(region);
 
-
+err:
+	kfree(pages);
 	return NULL;
 }
 
 
 
+int do_with_write_permissions(int (*fn)(struct gl_region[]),
+                              struct gl_region regions[],
+                              size_t region_count)
+{
+	size_t i, j;
+
+        debug("[ %s ] system call table address before remap %p\n",
+	      MODULE_NAME,
+	      regions[0].source);
+
+	if ( !fn )  
+		return (-EINVAL);
+	
+
+	if ( !regions || region_count == 0 )
+		return fn(NULL);
+
+	for (i = 0; i < region_count; i++) {
+
+		regions[i].writeable =
+			remap_with_write_permissions(regions[i].source,
+			                             regions[i].length);
+		if (!regions[i].writeable) {
+
+			for (j = 0; j < i; j++) {
+				vunmap(base_of_page(regions[j].writeable));
+			}
+			
+			error("[ %s ]  regions[i].writeable == NULL ", MODULE_NAME);
+			return (-ENOMEM);
+		}
+	}
+
+        debug("[ %s ] system call table address after remap %p\n", 
+	      MODULE_NAME,
+	      regions[0].writeable);
+	
+	fn(regions);
+
+	for (i = 0; i < region_count; i++) {
+		vunmap(base_of_page(regions[i].writeable));
+	}
+
+	return (SUCCESS);
+}
 
 
 

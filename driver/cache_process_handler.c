@@ -24,7 +24,7 @@ void gather_current_process_information(struct process_cache_node* process_info)
 }
 
 static inline __attribute__((always_inline))
-int gather_process_parameters(struct process_cache_node* process_info,unsigned char mode) {
+int gather_process_parameters(struct process_cache_node* process_info, unsigned char mode) {
 
 
 	int __kernel__file_info(const char* task_path, const unsigned char algo
@@ -48,6 +48,7 @@ int gather_process_parameters(struct process_cache_node* process_info,unsigned c
 
 		path_ptr = get_proc_path(current, buffer, EVENT_MAX_PATH_LEN);
 		if ( !IS_ERR(path_ptr) ) {
+
 			p = strnstr(path_ptr, current->comm, EVENT_MAX_PATH_LEN);
 			if (p) {
 				strncpy(process_info->data.path, path_ptr, (p-path_ptr));
@@ -110,7 +111,7 @@ int gather_process_parameters(struct process_cache_node* process_info,unsigned c
 
 		cache_rcu_process_item(process_info->data.pid, process_info, mode);
 
-		info("[ %s ] gather_process_parameters() parent process information ",MODULE_NAME);
+		info("[ %s ] gather_process_parameters() parent process information ", MODULE_NAME);
 		_dump_cache_node(process_info);
 		
 	} else;

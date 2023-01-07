@@ -1,10 +1,14 @@
 #include "os_interceptor_data_type.h"
 
 
-extern struct workqueue_struct* wq;
+extern struct workqueue_struct* wq = NULL;
+static struct kmem_cache *cache_group = NULL;
+
+
 
 
 int relay_channels_initialize(void) {
+
 
 	if ( init_channel(RELAY_NAME_EVENTS, 5000, (MSG_LEN*10), events_relay) ) {
 
@@ -74,7 +78,26 @@ int init_module_boot_process(void) {
 
 	int ret = SUCCESS;
   
-	init_memory_mngr();
+	//init_memory_mngr();
+
+
+	cache_group = kmem_cache_create(KMEM_HASH, 
+					sizeof(struct process_cache_node),
+					0,
+					0,
+					NULL);
+
+	if (IS_ERR_OR_NULL(cache_group)) {
+
+		error("[ %s ] error creating cache: [ %ld ], cache name: [ %s ]",
+		      MODULE_NAME, 
+		      PTR_ERR(cache_group), 
+		      KMEM_HASH);
+
+		return (-ENOMEM);
+	}
+
+
 
 	init_crypto();
 	/*
@@ -86,6 +109,13 @@ int init_module_boot_process(void) {
 	init_process_scan();  
  
 	wq =  create_workqueue(WQ_NAME);
+	if (IS_ERR_OR_NULL(wq)) {
+		error("[ %s ] error creating workqueue: [ %ld ]",
+		      MODULE_NAME, 
+		      PTR_ERR(wq) );
+
+		return (-ENOMEM);
+	}
 
 	init_user_app_communication(); 
 	
@@ -150,8 +180,12 @@ int destroy_module_boot_process(void) {
 	/* 
 	   clear & destroy workqueue 
 	*/
-	flush_workqueue(wq);
-	destroy_workqueue(wq);
+	if (wq) {
+
+		flush_workqueue(wq);
+		destroy_workqueue(wq);
+
+	}
 
 	destroy_crypto(); 
 	destroy_network();
@@ -163,7 +197,10 @@ int destroy_module_boot_process(void) {
 	*/
 	smp_mb(); 
 
-	destroy_memory_mngr();
+	if (cache_group) {
+
+		kmem_cache_destroy(cache_group);
+	}
 
 	info("[ %s ] driver unloaded success .", MODULE_NAME);
 
