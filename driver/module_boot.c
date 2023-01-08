@@ -1,8 +1,8 @@
 #include "os_interceptor_data_type.h"
 
 
-extern struct workqueue_struct* wq = NULL;
-static struct kmem_cache *cache_group = NULL;
+extern struct workqueue_struct* wq;
+struct kmem_cache *cache_group = NULL;
 
 
 
@@ -73,17 +73,14 @@ int init_module_boot_process(void) {
 	int init_crypto(void);
 	int init_network(void);
 	int init_process_scan(void);
-	int init_memory_mngr(void);
 	int init_thread_task(void);
 
 	int ret = SUCCESS;
   
-	//init_memory_mngr();
-
-
+	
 	cache_group = kmem_cache_create(KMEM_HASH, 
 					sizeof(struct process_cache_node),
-					0,
+					__alignof__(struct process_cache_node),
 					0,
 					NULL);
 
@@ -140,7 +137,6 @@ int destroy_module_boot_process(void) {
 	int bpm_engine_destroy(void);
 	void destroy_crypto(void);
 	void destroy_network(void);
-	int destroy_memory_mngr(void);
 	void destroy_thread_task(void);
 
 	/* 

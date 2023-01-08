@@ -43,52 +43,6 @@ long mem_find_insntruction_offset(unsigned long mem_addr, size_t block_size, int
 	return ERROR;
 }
 
-#if 0 
-/*  get the new hack sys call and patch the original with it 
-    and save the original address to put back things when module is unloded  */
-int mem_patch_relative_call(unsigned long mem_addr, size_t block_size, unsigned long new_call_addr,
-				unsigned long *orig_call_addr) 
-{
-
-	int ret = SUCCESS;
-	long call_insn_offset, call_insn_addr, call_relative_val, new_call_relative_val;
-
-
-	/* Find the relative call instruction (E8) offset. this for x86 only !!! */
-	call_insn_offset = mem_find_insntruction_offset(mem_addr, block_size, 
-							UD_Icall, RELATIVE_CALL_SIZE);	
-	if (ERROR == call_insn_offset) {
-		error("Error patching the relative call address instruction was not found\n");
-		ret = ERROR;
-	} else
-	{
-		/* Calculate the call instruction address */
-		call_insn_addr = (mem_addr + call_insn_offset);
-        
-
-		mem_make_rw(call_insn_addr);  
-		call_relative_val = (*((int *) (call_insn_addr + 1)));
-
-		/* Calculate the relative value for calling the new_sys_execve */
-		new_call_relative_val = ((unsigned long) new_call_addr - call_insn_addr - RELATIVE_CALL_SIZE);
-  
-		/* Save the address of the original sys_execve */
-		if (NULL != orig_call_addr) {
-			*orig_call_addr = call_insn_addr + RELATIVE_CALL_SIZE + call_relative_val;
-		}
-
-		/* 
-		   Patch, put the relative offset in byets to our system call
-		*/
-		(*((int*)(call_insn_addr + 1))) = (int) new_call_relative_val;
-	}        
-
-
-	return ret;
-}
-#endif
-
-
 /*  get the new hack sys call and patch the original with it 
  *  and save the original address to put back things when module is unloded  
 */
@@ -119,6 +73,7 @@ int mem_patch_relative_call(unsigned long mem_addr,
 		ret = ERROR;
 	} else
 	{
+
 		/* 
 		   Calculate the call instruction address 
 		*/
@@ -135,12 +90,12 @@ int mem_patch_relative_call(unsigned long mem_addr,
 		   Save the address of the original system call 
 		*/
 		if ( NULL != orig_call_addr ) {
-
+			
 			*orig_call_addr = call_insn_addr + RELATIVE_CALL_SIZE 
 				+ call_relative_val;
 		}
 
-
+		
 		enable_kernel_write();
 		/* 
 		   patch 

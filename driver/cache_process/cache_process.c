@@ -1,5 +1,11 @@
 #include "../os_interceptor_data_type.h"
 
+
+
+
+
+
+extern struct kmem_cache *cache_group;
 static DEFINE_HASHTABLE(h_process_cache,PRPCESS_CACHE_HASH_DISTRIBUTION);
 static DEFINE_SPINLOCK(s_lock);
 
@@ -13,215 +19,211 @@ static inline __attribute__((always_inline))
 void dump_cache_node(const struct process_cache_node* cache_node); 
 
 
-void _dump_cache_node(const struct process_cache_node* cache_node){
-  dump_cache_node(cache_node);
+void _dump_cache_node(const struct process_cache_node* cache_node) {
+	dump_cache_node(cache_node);
 } 
 
 
 static inline __attribute__((always_inline)) 
-void dump_cache_node(const struct process_cache_node* cache_node) 
-{
-  const unsigned short sz = 50;
-  char atimebuffer[sz], mtimebuffer[sz], ctimebuffer[sz],
-       p_atimebuffer[sz], p_mtimebuffer[sz], p_ctimebuffer[sz],
-       task_start_at[sz], current_time[sz];
+void dump_cache_node(const struct process_cache_node* cache_node) {
 
-  struct rtc_time tm;
-  unsigned long local_time;
-  struct timeval ktv;
 
-  memset(&ktv,0,sizeof(struct timeval));
-  memset(atimebuffer,0,sz);
-  memset(mtimebuffer,0,sz);
-  memset(ctimebuffer,0,sz);
+	const unsigned short sz = 50;
+	char atimebuffer[sz], mtimebuffer[sz], ctimebuffer[sz],
+		p_atimebuffer[sz], p_mtimebuffer[sz], p_ctimebuffer[sz],
+		task_start_at[sz], current_time[sz];
 
-  memset(p_atimebuffer,0,sz);
-  memset(p_mtimebuffer,0,sz);
-  memset(p_ctimebuffer,0,sz);
-  memset(task_start_at,0,sz);
-  memset(current_time,0,sz);
+	struct rtc_time tm;
+	unsigned long local_time;
+	struct timeval ktv;
 
-  /* current time */
-  do_gettimeofday(&ktv);
+	memset(&ktv, 0, sizeof(struct timeval));
+	memset(atimebuffer, 0, sz);
+	memset(mtimebuffer, 0, sz);
+	memset(ctimebuffer, 0, sz);
 
-  local_time = (u32)(ktv.tv_sec - (sys_tz.tz_minuteswest * 60)); 
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(current_time,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	memset(p_atimebuffer, 0, sz);
+	memset(p_mtimebuffer, 0, sz);
+	memset(p_ctimebuffer, 0, sz);
+	memset(task_start_at, 0, sz); 
+	memset(current_time, 0, sz);
 
-  /*  process time  */  
-  local_time = (u32)(cache_node->data.created_at.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(atimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	/* current time */
+	do_gettimeofday(&ktv);
 
-  local_time = (u32)(cache_node->data.modified_at.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(mtimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	local_time = (u32)(ktv.tv_sec - (sys_tz.tz_minuteswest * 60)); 
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(current_time,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	/*  process time  */  
+	local_time = (u32)(cache_node->data.created_at.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(atimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	local_time = (u32)(cache_node->data.modified_at.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(mtimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   
-  local_time = (u32)(cache_node->data.last_accessed_at.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(ctimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	local_time = (u32)(cache_node->data.last_accessed_at.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(ctimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-  /* task start at */
-  local_time = (u32)(cache_node->data.task_start_time.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(task_start_at,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	/* task start at */
+	local_time = (u32)(cache_node->data.task_start_time.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(task_start_at,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-  /* parent  process time */   
-  local_time = (u32)(cache_node->data.parent_created_at.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(p_atimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	/* parent  process time */   
+	local_time = (u32)(cache_node->data.parent_created_at.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(p_atimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-  local_time = (u32)(cache_node->data.parent_modified_at.tv_sec - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(p_mtimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	local_time = (u32)(cache_node->data.parent_modified_at.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(p_mtimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   
-  local_time = (u32)(cache_node->data.parent_last_accessed_at.tv_sec 
-                     - (sys_tz.tz_minuteswest * 60));
-  rtc_time_to_tm(local_time, &tm);
-  sprintf(p_ctimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
-         tm.tm_year + 1900, tm.tm_mon + 1, 
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	local_time = (u32)(cache_node->data.parent_last_accessed_at.tv_sec 
+			   - (sys_tz.tz_minuteswest * 60));
+	rtc_time_to_tm(local_time, &tm);
+	sprintf(p_ctimebuffer,"%04d-%02d-%02d %02d:%02d:%02d", 
+		tm.tm_year + 1900, tm.tm_mon + 1, 
+		tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
   
 
-       info("[ %s ]                        \n"\
-	    "time                     [ %s ]\n"\
-	    "pid                      [ %d ]\n"\
-            "parent_pid               [ %d ]\n"\
-            "path                     [ %s ]\n"\
-            "name                     [ %s ]\n"\
-            "cmdline                  [ %s ]\n"\
-            "created_at               [ %s ]\n"\
-            "modified_at              [ %s ]\n"\
-            "last_accessed_at         [ %s ]\n"\
-	    "file size                [ %llu Bytes ]\n"\
-	    "start time               [ %s ]\n"\
-            "parent_path              [ %s ]\n"\
-            "parent_name              [ %s ]\n"\
-            "parent_cmdline           [ %s ]\n"\
-            "parent_created_at        [ %s ]\n"\
-	    "parent_modified_at       [ %s ]\n"\
-	    "parent_last_accessed_at  [ %s ]\n"\
-    	    "parent_file_size         [ %llu Bytes ]\n"\
-	    ,MODULE_NAME   
-	    ,current_time
-            ,cache_node->data.pid
-	    ,cache_node->data.parent_pid
-	    ,cache_node->data.path
-	    ,cache_node->data.name
-	    ,cache_node->data.cmdline
-            ,atimebuffer
-	    ,mtimebuffer
-    	    ,ctimebuffer
-	    ,cache_node->data.file_size
-	    ,task_start_at
-	    ,cache_node->data.parent_path
-            ,cache_node->data.parent_name
-            ,cache_node->data.parent_cmdline
-            ,p_atimebuffer
-	    ,p_mtimebuffer
-    	    ,p_ctimebuffer 
-	    ,cache_node->data.parent_file_size );
+	info("[ %s ]                        \n"			\
+	     "time                     [ %s ]\n"		\
+	     "pid                      [ %d ]\n"		\
+	     "parent_pid               [ %d ]\n"		\
+	     "path                     [ %s ]\n"		\
+	     "name                     [ %s ]\n"		\
+	     "cmdline                  [ %s ]\n"		\
+	     "created_at               [ %s ]\n"		\
+	     "modified_at              [ %s ]\n"		\
+	     "last_accessed_at         [ %s ]\n"		\
+	     "file size                [ %llu Bytes ]\n"	\
+	     "start time               [ %s ]\n"		\
+	     "parent_path              [ %s ]\n"		\
+	     "parent_name              [ %s ]\n"		\
+	     "parent_cmdline           [ %s ]\n"		\
+	     "parent_created_at        [ %s ]\n"		\
+	     "parent_modified_at       [ %s ]\n"		\
+	     "parent_last_accessed_at  [ %s ]\n"		\
+	     "parent_file_size         [ %llu Bytes ]\n",	\
+	     MODULE_NAME, current_time, cache_node->data.pid, cache_node->data.parent_pid,
+	     cache_node->data.path, cache_node->data.name, cache_node->data.cmdline,
+	     atimebuffer, mtimebuffer, ctimebuffer, cache_node->data.file_size, task_start_at,
+	     cache_node->data.parent_path, cache_node->data.parent_name, cache_node->data.parent_cmdline,
+	     p_atimebuffer, p_mtimebuffer, p_ctimebuffer, cache_node->data.parent_file_size );
 
 
-       if(cache_node->data.identifier_valid==1)     
-       {
-         info("md5                    \n");
-         print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,\
-	         16, 1,cache_node->data.md5, MD5_LENGTH, false);
-       }else
-         info("md5 not valid           \n");
+	if (cache_node->data.identifier_valid == 1) {
+		info("md5                    \n");
+		print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,	\
+			       16, 1,cache_node->data.md5, MD5_LENGTH, false);
+       } else
+		info("md5 not valid           \n");
 
-       if(cache_node->data.parent_identifier_valid==1)     
-       {
-         info("parent md5              \n");
-         print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,\
-	          16, 1,cache_node->data.parent_md5, MD5_LENGTH, false);
-       }else
-         info("parent md5 not valid    \n");
+	if (cache_node->data.parent_identifier_valid == 1) {
+		info("parent md5              \n");
+		print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,	\
+			       16, 1,cache_node->data.parent_md5, MD5_LENGTH, false);
+       } else
+		info("parent md5 not valid    \n");
 
-       info("-----------------------\n");
+	info("-----------------------\n");
 }
 
-void print_cache(void)
-{
-   int bkt;
-   struct process_cache_node* cache_node=NULL;     
+
+void print_cache(void) {
+
+
+	int bkt;
+	struct process_cache_node* cache_node = NULL;     
    
-   rcu_read_lock();
+	rcu_read_lock();
    
-   hash_for_each_rcu(h_process_cache,bkt,cache_node,list) {   
-     dump_cache_node(cache_node);
-   }
+	hash_for_each_rcu(h_process_cache, bkt, cache_node, list) {   
+		dump_cache_node(cache_node);
+	}
    
-   rcu_read_unlock();
+	rcu_read_unlock();
 }
 
 
-static void cache_rcu_free_node(struct rcu_head* head)
-{
-  void _mempool_free_hash(void* obj);
+static void cache_rcu_free_node(struct rcu_head *head) {
+	
 
-  int cache_size_in_bytes=0;
-  struct process_cache_node* proc_cn=NULL;
-  proc_cn=container_of(head,struct process_cache_node, rcu_h);
+	int cache_size_in_bytes = 0;
+	struct process_cache_node* proc_cn = NULL;
 
-  atomic_long_dec(&cache_node_count);  
 
-  cache_size_in_bytes = (atomic_long_read(&cache_node_count) * sizeof(struct process_cache_node));
+	proc_cn=container_of(head,
+			     struct process_cache_node, 
+			     rcu_h);
 
-  /*  debug("[ %s ] cache_rcu_free_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]" \
-        " count: [ %ld ]:[ %d ]",
-        MODULE_NAME,proc_cn->data.pid, proc_cn->data.parent_pid,
-        proc_cn->data.name, atomic_long_read(&cache_node_count)
-        ,cache_size_in_bytes);*/
+	atomic_long_dec(&cache_node_count);  
 
-  _mempool_free_hash((void*)proc_cn);
+	cache_size_in_bytes = (atomic_long_read(&cache_node_count) * sizeof(struct process_cache_node));
+
+	/*  debug("[ %s ] cache_rcu_free_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]" \
+	    " count: [ %ld ]:[ %d ]",
+	    MODULE_NAME,proc_cn->data.pid, proc_cn->data.parent_pid,
+	    proc_cn->data.name, atomic_long_read(&cache_node_count)
+	    ,cache_size_in_bytes);*/
+
+	kmem_cache_free(cache_group, proc_cn);
 }
 
-#if 0 
-static void cache_rcu_remove(pid_t pid)
-{
-  unsigned long key=0, flags;
-  struct process_cache_node* node_del;
+
+static void cache_rcu_remove(pid_t pid) {
+
+
+        unsigned long key = 0, flags;
+        struct process_cache_node *node_del;
   
-  memcpy(&key,&pid,sizeof(pid_t));
+        memcpy(&key, &pid, sizeof(pid_t));
 
-  spin_lock_irqsave(&s_lock,flags);  
+        spin_lock_irqsave(&s_lock, flags);  
   
-  hash_for_each_possible_rcu(h_process_cache,node_del,list,key)
-  {
-    if(pid==node_del->data.pid)
-    {
-      hlist_del_init_rcu(&(node_del->list));
-      spin_unlock_irqrestore(&s_lock,flags); 
-      call_rcu(&(node_del->rcu_h),cache_rcu_free_node);
-      //info("[ %s ] cache_rcu_remove()   pid: [ %d ]  removed ! ", MODULE_NAME, pid);
-      return;
-    }
-  }
+        hash_for_each_possible_rcu(h_process_cache,
+				   node_del,
+				   list,
+				   key)
+	{
+         
+            if (pid == node_del->data.pid) {
 
-  spin_unlock_irqrestore(&s_lock,flags); 
+                  hlist_del_init_rcu(&(node_del->list));
+                  spin_unlock_irqrestore(&s_lock, flags); 
+                  call_rcu(&(node_del->rcu_h), cache_rcu_free_node);
+                  //info("[ %s ] cache_rcu_remove()   pid: [ %d ]  removed ! ", MODULE_NAME, pid);
+                 return;
+            }
+        }
+
+        spin_unlock_irqrestore(&s_lock, flags); 
 }
-#endif
 
-void delete_signed_nodes(void)
-{
-  int bkt;
+
+void delete_signed_nodes(void) {
+
+
+        int bkt;
   unsigned long flags;
   struct process_cache_node* node_del;
   
@@ -377,7 +379,7 @@ static void get_parent_process_information(struct process_cache_node* parent_nod
 static noinline 
 int cache_rcu_add_node(struct process_cache_node* process_info,unsigned char mode)
 {
-  void* _mempool_alloc_hash(void);
+	
 
   int ret=SUCCESS;
   int cache_size_in_bytes=0;
@@ -385,7 +387,7 @@ int cache_rcu_add_node(struct process_cache_node* process_info,unsigned char mod
   struct process_cache_node* cache_node=NULL;  
 
   /* allocate new cache node item   */
-  cache_node = (struct process_cache_node*)_mempool_alloc_hash();
+  cache_node = kmem_cache_zalloc(cache_group, GFP_KERNEL);
   ASSERT_MEMORY_ALLOCATION(cache_node);
   _memset_process_cache_node_data(cache_node);
  
@@ -687,8 +689,8 @@ int cache_rcu_process_item(pid_t pid, struct process_cache_node* process_info
      }     
   }else if(SUCCESS==get_process_cache_node(pid,NULL))  
   {  /* delete item */    
-     //cache_rcu_remove(pid);
-    sign_node_status_delete(pid);
+     cache_rcu_remove(pid);
+     //sign_node_status_delete(pid);
   }else
   {  
      ret=ERROR;

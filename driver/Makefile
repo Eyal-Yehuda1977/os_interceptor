@@ -21,7 +21,7 @@ patching-srcs            := patching/systemcall_interception.o \
 
 crypto-srcs              := crypto/crypto.o 
 network-srcs	         := network/network.o
-memory_mngr-srcs         := memory_mngr/kmem_slab_pool.o \
+#memory_mngr-srcs         := memory_mngr/kmem_slab_pool.o \
 			    memory_mngr/kmem_slab_pool_hash.o \
 
 
@@ -43,7 +43,7 @@ $(NAME)-y    := main.o \
 		$(patching-srcs) \
 		$(crypto-srcs) \
 		$(network-srcs) \
-		$(memory_mngr-srcs)
+#		$(memory_mngr-srcs)
 
 ccflags-y	 := -D__UD_STANDALONE__
 
