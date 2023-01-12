@@ -211,7 +211,7 @@ static void cache_rcu_remove(pid_t pid) {
                   hlist_del_init_rcu(&(node_del->list));
                   spin_unlock_irqrestore(&s_lock, flags); 
                   call_rcu(&(node_del->rcu_h), cache_rcu_free_node);
-                  //info("[ %s ] cache_rcu_remove()   pid: [ %d ]  removed ! ", MODULE_NAME, pid);
+                  info("[ %s ] cache_rcu_remove()   pid: [ %d ]  removed ! ", MODULE_NAME, pid);
                  return;
             }
         }
@@ -480,7 +480,7 @@ int cache_rcu_add_node(struct process_cache_node* process_info,unsigned char mod
     /* copy parent process information */
     get_parent_process_information(cache_node,mode);  
 
-    //dump_cache_node(cache_node);
+    dump_cache_node(cache_node);
     //info("[ %s ] cache_rcu_add_node() end\n",MODULE_NAME);
 
   }

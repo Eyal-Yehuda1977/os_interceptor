@@ -53,7 +53,7 @@ extern asmlinkage long (*original_sys_open_fn)(const char __user *filename,
 					       int flags,
 					       umode_t mode);
 
-extern asmlinkage long (*original_sys_close_fn)(struct files_struct *files ,unsigned fd);
+extern asmlinkage long (*original_sys_close_fn)(unsigned fd);
 
 extern asmlinkage long (*original_sys_rename_fn)(int olddfd, 
 						 const char __user *oldname,
@@ -284,6 +284,35 @@ static int patch_syscall_table(struct gl_region regions[]) {
 
 #endif 
 
+	ret = create_patch_entry( __NR_open );
+	ASSERT_RETURN_VALUE(ret, (-ERROR))
+	original_sys_open_fn = (cast_open)sys_call_table[ __NR_open ];
+	sys_call_table[ __NR_open ] = (long unsigned int)pfn_new_sys_open;
+	debug("[ %s ] syscall __NR_open patched. orig address: [ %p ] new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)original_sys_open_fn,
+	      (void*)pfn_new_sys_open);
+
+	ret = create_patch_entry( __NR_close );
+	ASSERT_RETURN_VALUE(ret, (-ERROR))
+	original_sys_close_fn = (cast_close)sys_call_table[ __NR_close ];
+	sys_call_table[ __NR_close ] = (long unsigned int)pfn_new_sys_close;
+	debug("[ %s ] syscall __NR_close patched. orig address: [ %p ] new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)original_sys_close_fn,
+	      (void*)pfn_new_sys_close);
+
+	ret = create_patch_entry( __NR_exit_group );
+	ASSERT_RETURN_VALUE(ret, (-ERROR))
+	original_sys_group_exit_fn = (cast_exit_group)sys_call_table[ __NR_exit_group ];
+	sys_call_table[ __NR_exit_group ] = (long unsigned int)pfn_new_sys_exit_group;
+	debug("[ %s ] syscall __NR_exit_group patched. orig address: [ %p ] "\
+	      "new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)original_sys_group_exit_fn,
+	      (void*)pfn_new_sys_exit_group);
+
+
 
 
 #if 0//eyal
@@ -316,24 +345,8 @@ static int patch_syscall_table(struct gl_region regions[]) {
 	      (void*)original_sys_connect_fn,
 	      (void*)pfn_new_sys_connect);
 
-	ret = create_patch_entry( __NR_open );
-	ASSERT_RETURN_VALUE(ret, (-ERROR))
-	original_sys_open_fn = (cast_open)sys_call_table[ __NR_open ];
-	sys_call_table[ __NR_open ] = (long unsigned int)pfn_new_sys_open;
-	debug("[ %s ] syscall __NR_open patched. orig address: [ %p ] new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)original_sys_open_fn,
-	      (void*)pfn_new_sys_open);
 #endif//eyal
 #if 0//eyal
-	ret = create_patch_entry( __NR_close );
-	ASSERT_RETURN_VALUE(ret, (-ERROR))
-	original_sys_close_fn = (cast_close)sys_call_table[ __NR_close ];
-	sys_call_table[ __NR_close ] = (long unsigned int)pfn_new_sys_close;
-	debug("[ %s ] syscall __NR_close patched. orig address: [ %p ] new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)original_sys_close_fn,
-	      (void*)pfn_new_sys_close);
 
 
 	ret = create_patch_entry( __NR_rename );
@@ -364,17 +377,6 @@ static int patch_syscall_table(struct gl_region regions[]) {
 	      MODULE_NAME,
 	      (void*)original_sys_fchmodat_fn,
 	      (void*)pfn_new_sys_fchmodat);
-
-
-	ret = create_patch_entry( __NR_exit_group );
-	ASSERT_RETURN_VALUE(ret, (-ERROR))
-	original_sys_group_exit_fn = (cast_exit_group)sys_call_table[ __NR_exit_group ];
-	sys_call_table[ __NR_exit_group ] = (long unsigned int)pfn_new_sys_exit_group;
-	debug("[ %s ] syscall __NR_exit_group patched. orig address: [ %p ] "\
-	      "new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)original_sys_group_exit_fn,
-	      (void*)pfn_new_sys_exit_group);
 
 
 	ret = create_patch_entry( __NR_truncate );
@@ -505,6 +507,36 @@ static int unpatch_syscall_table(struct gl_region regions[]) {
 #endif
 
 
+	debug("[ %s ] syscall __NR_open unpatched. orig address: [ %p ] new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)sys_call_table[ __NR_open ],
+	      (void*)original_sys_open_fn);
+
+	wait_on_patch_entry_counter( __NR_open );
+	sys_call_table[ __NR_open ] = (unsigned long int)original_sys_open_fn;
+
+
+	debug("[ %s ] syscall __NR_close unpatched. orig address: [ %p ] new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)sys_call_table[ __NR_close ],
+	      (void*)original_sys_close_fn);
+
+	wait_on_patch_entry_counter( __NR_close );
+	sys_call_table[ __NR_close ] = (unsigned long int)original_sys_close_fn;
+
+	
+	debug("[ %s ] syscall __NR_exit_group unpatched. orig address: [ %p ] "	\
+	      "new address: [ %p ]",
+	      MODULE_NAME,
+	      (void*)sys_call_table[ __NR_exit_group ],
+	      (void*)original_sys_group_exit_fn);
+
+	wait_on_patch_entry_counter( __NR_exit_group );
+	sys_call_table[ __NR_exit_group ] = (unsigned long int)original_sys_group_exit_fn;
+
+
+
+
 #if 0//eyal
 	debug("[ %s ] syscall __NR_read unpatched. orig address: [ %p ] new address: [ %p ]",
 	      MODULE_NAME,
@@ -536,22 +568,8 @@ static int unpatch_syscall_table(struct gl_region regions[]) {
 
 
 
-	debug("[ %s ] syscall __NR_open unpatched. orig address: [ %p ] new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)sys_call_table[ __NR_open ],
-	      (void*)original_sys_open_fn);
-
-	wait_on_patch_entry_counter( __NR_open );
-	sys_call_table[ __NR_open ] = (unsigned long int)original_sys_open_fn;
 #endif//eyal
 #if 0//eyal
-	debug("[ %s ] syscall __NR_close unpatched. orig address: [ %p ] new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)sys_call_table[ __NR_close ],
-	      (void*)original_sys_close_fn);
-
-	wait_on_patch_entry_counter( __NR_close );
-	sys_call_table[ __NR_close ] = (unsigned long int)original_sys_close_fn;
 
 
 	debug("[ %s ] syscall __NR_rename unpatched. orig address: [ %p ] new address: [ %p ]",
@@ -581,18 +599,6 @@ static int unpatch_syscall_table(struct gl_region regions[]) {
 
 	wait_on_patch_entry_counter( __NR_fchmodat );
 	sys_call_table[ __NR_fchmodat ] = (unsigned long int)original_sys_fchmodat_fn;
-
-
-
-	debug("[ %s ] syscall __NR_exit_group unpatched. orig address: [ %p ] "\
-	      "new address: [ %p ]",
-	      MODULE_NAME,
-	      (void*)sys_call_table[ __NR_exit_group ],
-	      (void*)original_sys_group_exit_fn);
-
-	wait_on_patch_entry_counter( __NR_exit_group );
-	sys_call_table[ __NR_exit_group ] = (unsigned long int)original_sys_group_exit_fn;
-
 
 
 	debug("[ %s ] syscall __NR_truncate unpatched. orig address: [ %p ] "\

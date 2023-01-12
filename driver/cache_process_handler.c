@@ -160,7 +160,7 @@ int gather_process_information_syscall_execve(char* target_file_path,
 
 			file_name = get_file_name_from_path(f_inf.path);
 			strncpy(process_info->data.path, f_inf.path, (file_name-f_inf.path));
-			//debug("[ %s ]  path: %s",MODULE_NAME, process_info->data.path);
+			debug("[ %s ]  path: %s",MODULE_NAME, process_info->data.path);
 
 			if(process_info->data.identifier_valid == 1) {
 				memcpy(process_info->data.md5, f_inf.md5, MD5_LENGTH); 
@@ -179,12 +179,12 @@ int gather_process_information_syscall_execve(char* target_file_path,
 		else
 			strncpy(process_info->data.name, target_file_name, EVENT_MAX_PATH_LEN);      
 
-		//debug("[ %s ]  name:  %s",MODULE_NAME,process_info->data.name);
+		debug("[ %s ]  name:  %s",MODULE_NAME,process_info->data.name);
 	}   
 
 	if ( NULL != target_cmdline ) {  
 		strncpy(process_info->data.cmdline, target_cmdline, EVENT_MAX_PATH_LEN);
-		//debug("[ %s ]  cmdline:     %s",MODULE_NAME,process_info->data.cmdline);
+		debug("[ %s ]  cmdline:     %s",MODULE_NAME,process_info->data.cmdline);
 	}
 
 	attr = (struct file_attr_t*)vmalloc(sizeof(struct file_attr_t));

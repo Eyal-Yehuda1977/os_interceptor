@@ -44,25 +44,6 @@ int relay_channels_initialize(void) {
 }
 
 
-int module_boot_process_stop_machine(void *p) {
-	
-	int init_patch_systcall_table(void);
-
-	init_patch_systcall_table();   
-  
-	return 0;
-}
-
-
-int module_destroy_process_stop_machine(void *p) {
-
-	int destroy_patched_systcall_table(void);
-	
-	destroy_patched_systcall_table();
-
-	return 0;
-}
-
 
 
 int init_module_boot_process(void) {
@@ -74,7 +55,7 @@ int init_module_boot_process(void) {
 	int init_network(void);
 	int init_process_scan(void);
 	int init_thread_task(void);
-
+	int init_patch_systcall_table(void);
 	int ret = SUCCESS;
   
 	
@@ -120,12 +101,14 @@ int init_module_boot_process(void) {
 	
 	init_network();  
 
-	smp_mb();
-
-	ret = stop_machine(module_boot_process_stop_machine, NULL, 0);   
-
 	init_thread_task();
+	//ret = stop_machine(module_boot_process_stop_machine, NULL, 0);   
 
+        smp_mb();
+
+	ret = init_patch_systcall_table();
+
+	
 	return ret;
 }
 
@@ -138,13 +121,10 @@ int destroy_module_boot_process(void) {
 	void destroy_crypto(void);
 	void destroy_network(void);
 	void destroy_thread_task(void);
+	int destroy_patched_systcall_table(void);
 
-	/* 
-	   stop for all cpus to perform syscall table fix back address, 
-	   then resume work after hooking is done. 
-	*/
 
-	stop_machine(module_destroy_process_stop_machine, NULL, 0);
+	destroy_patched_systcall_table();
 
 	/* 
 	   hardware memory barrier to prevent instructions 
@@ -165,7 +145,7 @@ int destroy_module_boot_process(void) {
 	destroy_process_cache();
 
 	/* 
-	   BPM / HP destroy
+	   HP destroy
 	*/ 
 	bpm_engine_destroy();
 

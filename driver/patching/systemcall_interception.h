@@ -131,7 +131,7 @@ typedef long (*cast_open)(const char __user *filename,
 			  int flags, 
 			  umode_t mode);
 
-typedef long (*cast_close)(struct files_struct *files ,unsigned fd);
+typedef long (*cast_close)(unsigned fd);
 
 typedef long (*cast_rename)(int olddfd, 
 			    const char __user *oldname,
