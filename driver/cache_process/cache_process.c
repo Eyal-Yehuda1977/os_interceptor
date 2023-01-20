@@ -172,19 +172,21 @@ static void cache_rcu_free_node(struct rcu_head *head) {
 	struct process_cache_node* proc_cn = NULL;
 
 
-	proc_cn=container_of(head,
-			     struct process_cache_node, 
-			     rcu_h);
+	proc_cn = container_of(head,
+			       struct process_cache_node, 
+			       rcu_h);
 
 	atomic_long_dec(&cache_node_count);  
 
 	cache_size_in_bytes = (atomic_long_read(&cache_node_count) * sizeof(struct process_cache_node));
 
-	/*  debug("[ %s ] cache_rcu_free_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]" \
+	/*  
+	    debug("[ %s ] cache_rcu_free_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]" \
 	    " count: [ %ld ]:[ %d ]",
 	    MODULE_NAME,proc_cn->data.pid, proc_cn->data.parent_pid,
 	    proc_cn->data.name, atomic_long_read(&cache_node_count)
-	    ,cache_size_in_bytes);*/
+	    ,cache_size_in_bytes);
+	*/
 
 	kmem_cache_free(cache_group, proc_cn);
 }
@@ -224,479 +226,517 @@ void delete_signed_nodes(void) {
 
 
         int bkt;
-  unsigned long flags;
-  struct process_cache_node* node_del;
+	unsigned long flags;
+	struct process_cache_node* node_del;
   
-  synchronize_rcu();
+	synchronize_rcu();
+	
+	spin_lock_irqsave(&s_lock,flags);  
 
-  spin_lock_irqsave(&s_lock,flags);  
+	hash_for_each_rcu(h_process_cache, bkt, node_del, list) {
 
-  hash_for_each_rcu(h_process_cache,bkt,node_del,list)
-  {
-    if(node_del->rec_status == CACHE_NODE_DELETED)
-    {
-      hlist_del_init_rcu(&(node_del->list));
-      info("[ %s ] delete_signed_nodes()   pid: [ %d ]  removed ! "
-	   , MODULE_NAME, node_del->data.pid);
-      call_rcu(&(node_del->rcu_h),cache_rcu_free_node);
-    }
-  }
+		if(node_del->rec_status == CACHE_NODE_DELETED) {
 
-  spin_unlock_irqrestore(&s_lock,flags); 
+			hlist_del_init_rcu(&(node_del->list));
+			info("[ %s ] delete_signed_nodes()   pid: [ %d ]  removed ! "
+			     , MODULE_NAME, 
+			     node_del->data.pid);
+			
+			call_rcu(&(node_del->rcu_h),cache_rcu_free_node);
+		}
+	}
+
+	spin_unlock_irqrestore(&s_lock,flags); 
 }
 
 
-static void sign_node_status_delete(pid_t pid)
-{
-  unsigned long key=0, flags;
-  struct process_cache_node* node_del;
+static void sign_node_status_delete(pid_t pid) {
+
+	unsigned long key=0, flags;
+	struct process_cache_node* node_del;
   
-  memcpy(&key,&pid,sizeof(pid_t));
+	memcpy(&key, &pid, sizeof(pid_t));
 
-  synchronize_rcu();
+	synchronize_rcu();
 
-  rcu_read_lock();
+	rcu_read_lock();
 
-  spin_lock_irqsave(&s_lock,flags);  
+	spin_lock_irqsave(&s_lock, flags);  
   
-  hash_for_each_possible_rcu(h_process_cache,node_del,list,key)
-  {
-    if(pid==node_del->data.pid)
-    {
-      node_del->rec_status = CACHE_NODE_DELETED;
-      spin_unlock_irqrestore(&s_lock,flags); 
-      rcu_read_unlock();
-      return;
-    }
-  }
+	hash_for_each_possible_rcu(h_process_cache, node_del, list, key) {
 
-  spin_unlock_irqrestore(&s_lock,flags); 
+		if(pid == node_del->data.pid) {
+			node_del->rec_status = CACHE_NODE_DELETED;
+			spin_unlock_irqrestore(&s_lock, flags); 
+			rcu_read_unlock();
+			return;
+		}
+	}
 
-  rcu_read_unlock();
+	spin_unlock_irqrestore(&s_lock, flags); 
+
+	rcu_read_unlock();
 }
 
 
 static void get_parent_process_information(struct process_cache_node* parent_node_ptr
-				    ,unsigned char mode)
+					   ,unsigned char mode)
 {
-  extern int proc_pid_cmdline(struct task_struct *task, char * buffer);
-  extern char* get_proc_path(struct task_struct* task, char *buf, int buflen);
-  extern int __kernel__file_info(const char* task_path, const unsigned char algo
-	          ,struct file_info_t* f_inf, unsigned char* identifier_valid); 
+	extern int proc_pid_cmdline(struct task_struct *task, char * buffer);
+	extern char* get_proc_path(struct task_struct* task, char *buf, int buflen);
+	extern int __kernel__file_info(const char* task_path, const unsigned char algo
+				       ,struct file_info_t* f_inf, unsigned char* identifier_valid); 
 
-  struct task_struct* task_parent;
-  char* buffer, *path_ptr=NULL, *p=NULL;
-  struct file_attr_t attr;
-  struct file_info_t f_inf;
-  int res=0;
-  /* case we do not have parent then pid 0 (init) will be the parent */
-  if(current->parent)
-      task_parent = current->parent;
-  else
-      task_parent = current->real_parent;
+	struct task_struct *task_parent;
+	char *buffer, *path_ptr=NULL, *p=NULL;
+	struct file_attr_t attr;
+	struct file_info_t f_inf;
+	int res = 0;
+
+	/* case we do not have parent then pid 0 (init) will be the parent */
+	if (current->parent)
+		task_parent = current->parent;
+	else
+		task_parent = current->real_parent;
 #if 0  
-  /* check if the parent alive yet, 
-     if not then init task (1) will be the real parent.
-     for example: this comes to support GUI invoking an application and gnome-shell dies
-     right after execve*/
-  if((pid_task(find_get_pid(task_parent->pid), PIDTYPE_PID) == NULL)
-      || (task_parent->state != TASK_RUNNING)) 
-  {
-     task_parent = pid_task(find_vpid(1), PIDTYPE_PID);
-  }
+	/* check if the parent alive yet, 
+	   if not then init task (1) will be the real parent.
+	   for example: this comes to support GUI invoking an application and gnome-shell dies
+	   right after execve*/
+	if ((pid_task(find_get_pid(task_parent->pid), PIDTYPE_PID) == NULL)
+	   || (task_parent->state != TASK_RUNNING)) 
+	{
+		task_parent = pid_task(find_vpid(1), PIDTYPE_PID);
+	}
 #endif
 
-  buffer = vmalloc(PAGE_SIZE*sizeof(char));
-  if(IS_ERR_OR_NULL(buffer)){
-     pr_err("memory allocation error in function  [ %s ]  file [ %s ]"\
-            " line [ %d ]\n", __func__, __FILE__, __LINE__ ); \
-     return;
-  }
+	buffer = vmalloc(PAGE_SIZE*sizeof(char));
+	if (IS_ERR_OR_NULL(buffer)) {
+		pr_err("memory allocation error in function  [ %s ]  file [ %s ]" \
+		       " line [ %d ]\n", __func__, __FILE__, __LINE__ ); \
+		return;
+	}
 
-  memset(buffer,0,PAGE_SIZE*sizeof(char));
+	memset(buffer, 0, PAGE_SIZE*sizeof(char));
 
-  if((mode == GET_PARENT_CMDLINE) && task_parent)
-  { 
-    if((res=proc_pid_cmdline(task_parent,buffer))>0)
-    { 
-      res = (res>EVENT_MAX_PATH_LEN)?(EVENT_MAX_PATH_LEN-1):res;
-      strncpy(parent_node_ptr->data.parent_cmdline,buffer,res); 
-    }
-  }
+	if ((mode == GET_PARENT_CMDLINE) && task_parent) {
+		if ((res = proc_pid_cmdline(task_parent,buffer)) > 0) { 
+			res = (res > EVENT_MAX_PATH_LEN) ? (EVENT_MAX_PATH_LEN - 1):res;
+			strncpy(parent_node_ptr->data.parent_cmdline, buffer, res); 
+		}
+	}
 
-  memset(buffer,0,PAGE_SIZE*sizeof(char));
+	memset(buffer, 0, PAGE_SIZE*sizeof(char));
 
-  if(task_parent)
-  { 
-     path_ptr = get_proc_path(task_parent,buffer,EVENT_MAX_PATH_LEN);
-     if(!IS_ERR(path_ptr))
-     {
-       p=get_file_name_from_path(path_ptr);
-       if(p)
-       {
-        strncpy(parent_node_ptr->data.parent_path,path_ptr, (p-path_ptr));
-        strncpy(parent_node_ptr->data.parent_name,p,EVENT_MAX_PATH_LEN);	
-       }else
-       {
-         strncpy(parent_node_ptr->data.parent_path, path_ptr,EVENT_MAX_PATH_LEN);
-         strncpy(parent_node_ptr->data.parent_name, task_parent->comm,EVENT_MAX_PATH_LEN);
-       }       
-    }    
-  }
+	if (task_parent) {
+ 
+		path_ptr = get_proc_path(task_parent, buffer, EVENT_MAX_PATH_LEN);
+		if (!IS_ERR(path_ptr)) {
+			p = get_file_name_from_path(path_ptr);
+		
+			if(p) {
+				strncpy(parent_node_ptr->data.parent_path, path_ptr, (p-path_ptr));
+				strncpy(parent_node_ptr->data.parent_name, p, EVENT_MAX_PATH_LEN);	
+			} else
+			{
+				strncpy(parent_node_ptr->data.parent_path, path_ptr, EVENT_MAX_PATH_LEN);
+				strncpy(parent_node_ptr->data.parent_name, task_parent->comm, EVENT_MAX_PATH_LEN);
+			}       
+		}    
+	}
   
-  /*take file time attributes */
-  memset(buffer,0,(PAGE_SIZE*sizeof(char)));
-  snprintf(buffer,EVENT_MAX_PATH_LEN,"%s%s",parent_node_ptr->data.parent_path
-          ,parent_node_ptr->data.parent_name);
+	/*take file time attributes */
+	memset(buffer, 0, (PAGE_SIZE*sizeof(char)));
+	snprintf(buffer, EVENT_MAX_PATH_LEN, "%s%s", parent_node_ptr->data.parent_path
+		 ,parent_node_ptr->data.parent_name);
 
-  get_file_attributes_from_path(buffer,&attr);
+	get_file_attributes_from_path(buffer, &attr);
 
-  __memcpy_parent_file_attr(parent_node_ptr,attr) 
+	__memcpy_parent_file_attr(parent_node_ptr, attr) 
 
-  /* calculate md5 of parent process */
-  if((strlen(parent_node_ptr->data.parent_path)>0)
-  && (strlen(parent_node_ptr->data.parent_name)>0))
-  {
-    memset(&f_inf,0,sizeof(struct file_info_t));
-    memset(buffer,0,PAGE_SIZE*sizeof(char));
+	/* calculate md5 of parent process */
+	if ((strlen(parent_node_ptr->data.parent_path) > 0) 
+	    && (strlen(parent_node_ptr->data.parent_name) > 0))
+	{
+		memset(&f_inf, 0, sizeof(struct file_info_t));
+		memset(buffer, 0, PAGE_SIZE * sizeof(char));
   
-    snprintf(buffer,EVENT_MAX_PATH_LEN,"%s%s"
-            ,parent_node_ptr->data.parent_path
-	    ,parent_node_ptr->data.parent_name);
+		snprintf(buffer, 
+			 EVENT_MAX_PATH_LEN, 
+			 "%s%s",
+			 parent_node_ptr->data.parent_path,
+			 parent_node_ptr->data.parent_name);
 
-    if( __kernel__file_info(buffer
-			   ,algo_md5
-			   ,&f_inf
-			   ,&parent_node_ptr->data.parent_identifier_valid) == SUCCESS ) 
-       memcpy(parent_node_ptr->data.parent_md5,f_inf.md5,MD5_LENGTH); 
-       
-    parent_node_ptr->data.parent_file_size = f_inf.file_size;              
-  }
+		if( __kernel__file_info(buffer, 
+					algo_md5, 
+					&f_inf,
+					&parent_node_ptr->data.parent_identifier_valid) == SUCCESS ) 
+		{
+			memcpy(parent_node_ptr->data.parent_md5, f_inf.md5, MD5_LENGTH); 
+		}
+
+		parent_node_ptr->data.parent_file_size = f_inf.file_size;              
+	}
    
-  vfree(buffer);  
+	vfree(buffer);  
 }
 
 static noinline 
-int cache_rcu_add_node(struct process_cache_node* process_info,unsigned char mode)
+int cache_rcu_add_node(struct process_cache_node *process_info, unsigned char mode)
 {
 	
+	int ret = SUCCESS;
+	int cache_size_in_bytes = 0;
+	unsigned long key = 0, flags;
+	struct process_cache_node *cache_node = NULL;  
 
-  int ret=SUCCESS;
-  int cache_size_in_bytes=0;
-  unsigned long key=0, flags;
-  struct process_cache_node* cache_node=NULL;  
-
-  /* allocate new cache node item   */
-  cache_node = kmem_cache_zalloc(cache_group, GFP_KERNEL);
-  ASSERT_MEMORY_ALLOCATION(cache_node);
-  _memset_process_cache_node_data(cache_node);
+	/* allocate new cache node item   */
+	cache_node = kmem_cache_zalloc(cache_group, GFP_KERNEL);
+	ASSERT_MEMORY_ALLOCATION(cache_node);
+	_memset_process_cache_node_data(cache_node);
  
-  /* used only by lib_process*/
-  if(mode == NODE_FULL_INSERT)
-  { 
+	/* used only by lib_process*/
+	if (mode == NODE_FULL_INSERT) { 
 
-    cache_node->data.pid = process_info->data.pid;
-    cache_node->data.parent_pid = process_info->data.parent_pid;
+		cache_node->data.pid = process_info->data.pid;
+		cache_node->data.parent_pid = process_info->data.parent_pid;
 
-    strncpy(cache_node->data.path, process_info->data.path
-                 ,EVENT_MAX_PATH_LEN);
+		strncpy(cache_node->data.path, process_info->data.path
+			,EVENT_MAX_PATH_LEN);
 
-    strncpy(cache_node->data.name, process_info->data.name
-                ,EVENT_MAX_PATH_LEN);
+		strncpy(cache_node->data.name, process_info->data.name
+			,EVENT_MAX_PATH_LEN);
 
-    strncpy(cache_node->data.cmdline, process_info->data.cmdline
-                 ,EVENT_MAX_PATH_LEN);
+		strncpy(cache_node->data.cmdline, process_info->data.cmdline
+			,EVENT_MAX_PATH_LEN);
 
-    cache_node->data.created_at = process_info->data.created_at;
-    cache_node->data.modified_at = process_info->data.modified_at;
-    cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
+		cache_node->data.created_at = process_info->data.created_at;
+		cache_node->data.modified_at = process_info->data.modified_at;
+		cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
+		
+		cache_node->data.file_size= process_info->data.file_size;
+
+		cache_node->data.task_start_time = process_info->data.task_start_time;
+		
+		strncpy(cache_node->data.parent_cmdline,
+			process_info->data.parent_cmdline,
+			EVENT_MAX_PATH_LEN);   
+   
+		strncpy(cache_node->data.parent_path,
+			process_info->data.parent_path,
+			EVENT_MAX_PATH_LEN);
+
+		strncpy(cache_node->data.parent_name,
+			process_info->data.parent_name,
+			EVENT_MAX_PATH_LEN);
+     
+		cache_node->data.parent_created_at = process_info->data.parent_created_at;
+		cache_node->data.parent_modified_at = process_info->data.parent_modified_at;
+		cache_node->data.parent_last_accessed_at = process_info->data.parent_last_accessed_at; 
+   
+		cache_node->data.parent_file_size = process_info->data.parent_file_size;
+
+		/* union then both will be copied into the same memory speace  */
+		cache_node->data.identifier_valid = process_info->data.identifier_valid;
+		if ((cache_node->data.identifier_valid = 1)) {
+			memcpy(cache_node->data.sha1, 
+			       process_info->data.sha1,
+			       SHA1_LENGTH);          
+		}
+
+		/* union then both will be copied into the same memory speace  */
+		cache_node->data.parent_identifier_valid = process_info->data.parent_identifier_valid;
+		if ((cache_node->data.parent_identifier_valid = 1)) {
+			memcpy(cache_node->data.parent_sha1, 
+			       process_info->data.parent_sha1,
+			       SHA1_LENGTH);          
+		}
+
+	} else
+	{ 
+		/*  used from cache_process_handler.c when process not exist in cache*/
+		/* copy data to new cache node item */
+
+		//info("[ %s ] cache_rcu_add_node() start\n", MODULE_NAME);
+		//dump_cache_node(process_info);
+
+		cache_node->data.pid = process_info->data.pid;
+		cache_node->data.parent_pid = process_info->data.parent_pid;       
+
+		strncpy(cache_node->data.path, 
+			process_info->data.path,
+			EVENT_MAX_PATH_LEN);
+
+		strncpy(cache_node->data.name, 
+			process_info->data.name,
+			EVENT_MAX_PATH_LEN);
     
-    cache_node->data.file_size= process_info->data.file_size;
+		strncpy(cache_node->data.cmdline, 
+			process_info->data.cmdline,
+			EVENT_MAX_PATH_LEN);
 
-    cache_node->data.task_start_time = process_info->data.task_start_time;
+		cache_node->data.created_at = process_info->data.created_at;
+		cache_node->data.modified_at = process_info->data.modified_at;
+		cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
 
-    strncpy(cache_node->data.parent_cmdline,process_info->data.parent_cmdline
-                 ,EVENT_MAX_PATH_LEN);   
-   
-    strncpy(cache_node->data.parent_path,process_info->data.parent_path
-                 ,EVENT_MAX_PATH_LEN);
+		cache_node->data.task_start_time = process_info->data.task_start_time;
+		
+		cache_node->data.parent_file_size = process_info->data.parent_file_size;
 
-    strncpy(cache_node->data.parent_name,process_info->data.parent_name
-                 ,EVENT_MAX_PATH_LEN);
-     
-    cache_node->data.parent_created_at = process_info->data.parent_created_at;
-    cache_node->data.parent_modified_at = process_info->data.parent_modified_at;
-    cache_node->data.parent_last_accessed_at = process_info->data.parent_last_accessed_at; 
-   
-    cache_node->data.parent_file_size = process_info->data.parent_file_size;
+		/* union then both will be copied into the same memory speace  */
+		cache_node->data.identifier_valid = process_info->data.identifier_valid;
+		if ((cache_node->data.identifier_valid = 1)) {
+			memcpy(cache_node->data.sha1, 
+			       process_info->data.sha1,
+			       SHA1_LENGTH);          
+		}
 
-    /* union then both will be copied into the same memory speace  */
-    cache_node->data.identifier_valid=process_info->data.identifier_valid;
-    if((cache_node->data.identifier_valid=1)) {
-        memcpy(cache_node->data.sha1, process_info->data.sha1
-              ,SHA1_LENGTH);          
-    }
+		smp_mb();
+		/* copy parent process information */
+		get_parent_process_information(cache_node,mode);  
 
-    /* union then both will be copied into the same memory speace  */
-    cache_node->data.parent_identifier_valid=process_info->data.parent_identifier_valid;
-    if((cache_node->data.parent_identifier_valid=1)) {
-        memcpy(cache_node->data.parent_sha1, process_info->data.parent_sha1
-              ,SHA1_LENGTH);          
-    }
+	}
 
-  }else
-  {      /*  used from cache_process_handler.c when process not exist in cache*/
-    /* copy data to new cache node item */
 
-    //info("[ %s ] cache_rcu_add_node() start\n", MODULE_NAME);
-    //dump_cache_node(process_info);
+	dump_cache_node(cache_node);
+	info("[ %s ] cache_rcu_add_node() end\n",MODULE_NAME);
 
-    cache_node->data.pid = process_info->data.pid;
-    cache_node->data.parent_pid = process_info->data.parent_pid;       
 
-    strncpy(cache_node->data.path, process_info->data.path
-           ,EVENT_MAX_PATH_LEN);
-    strncpy(cache_node->data.name, process_info->data.name
-           ,EVENT_MAX_PATH_LEN);
-    strncpy(cache_node->data.cmdline, process_info->data.cmdline
-           ,EVENT_MAX_PATH_LEN);
+	/* build the key which is contained of pid  */  
+	memcpy(&key, &(cache_node->data.pid), sizeof(pid_t)); 
 
-    cache_node->data.created_at = process_info->data.created_at;
-    cache_node->data.modified_at = process_info->data.modified_at;
-    cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
+	spin_lock_irqsave(&s_lock, flags);
+	hash_add_rcu(h_process_cache,&(cache_node->list), key);
+	atomic_long_inc(&cache_node_count);  
 
-    cache_node->data.task_start_time = process_info->data.task_start_time;
+	cache_size_in_bytes = (atomic_long_read(&cache_node_count) * sizeof(struct process_cache_node));
+	spin_unlock_irqrestore(&s_lock, flags);  
 
-    cache_node->data.parent_file_size = process_info->data.parent_file_size;
+	debug("[ %s ] cache_rcu_add_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]" \
+	      " count: [ %ld ]:[ %d ]", 
+	      MODULE_NAME,cache_node->data.pid, 
+	      cache_node->data.parent_pid,
+	      cache_node->data.name, 
+	      atomic_long_read(&cache_node_count),
+	      cache_size_in_bytes);
 
-    /* union then both will be copied into the same memory speace  */
-    cache_node->data.identifier_valid=process_info->data.identifier_valid;
-    if((cache_node->data.identifier_valid=1)) {
-        memcpy(cache_node->data.sha1, process_info->data.sha1
-              ,SHA1_LENGTH);          
-    }
-
-    smp_mb();
-    /* copy parent process information */
-    get_parent_process_information(cache_node,mode);  
-
-    dump_cache_node(cache_node);
-    //info("[ %s ] cache_rcu_add_node() end\n",MODULE_NAME);
-
-  }
-  /* build the key which is contained of pid  */  
-  memcpy(&key,&(cache_node->data.pid),sizeof(pid_t)); 
-
-  spin_lock_irqsave(&s_lock,flags);
-  hash_add_rcu(h_process_cache,&(cache_node->list),key);
-  atomic_long_inc(&cache_node_count);  
-  cache_size_in_bytes = (atomic_long_read(&cache_node_count) * sizeof(struct process_cache_node));
-  spin_unlock_irqrestore(&s_lock,flags);  
-
-  debug("[ %s ] cache_rcu_add_node pid [ %d ] . parent_pid: [ %d ] comm: [ %s ]"\
-       " count: [ %ld ]:[ %d ]",
-       MODULE_NAME,cache_node->data.pid, cache_node->data.parent_pid,
-       cache_node->data.name, atomic_long_read(&cache_node_count)
-      ,cache_size_in_bytes);
-
- return ret;
+	return ret;
 }
 
-static int cache_rcu_update(struct process_cache_node* process_info)
-{
-  unsigned long key=0, flags;
-  struct process_cache_node* cache_node=NULL;  
+static int cache_rcu_update(struct process_cache_node *process_info) {
 
-  memcpy(&key,&process_info->data.pid,sizeof(pid_t));  
 
-  synchronize_rcu();
+	unsigned long key = 0, flags;
+	struct process_cache_node *cache_node = NULL;  
 
-  rcu_read_lock();
+	memcpy(&key, &process_info->data.pid, sizeof(pid_t));  
 
-  hash_for_each_possible_rcu(h_process_cache,cache_node,list,key)
-  { 
-    if(cache_node->data.pid==process_info->data.pid)
-    {
-      spin_lock_irqsave(&s_lock,flags);
+	synchronize_rcu(); 
 
-      //info("[ %s ] cache_rcu_update() start\n",MODULE_NAME);
-      //dump_cache_node(process_info);
-      //dump_cache_node(cache_node);
+	rcu_read_lock();
+
+	hash_for_each_possible_rcu(h_process_cache, cache_node, list, key) {
+		
+		if (cache_node->data.pid == process_info->data.pid) {
+
+			spin_lock_irqsave(&s_lock, flags);
+
+			info("[ %s ] cache_rcu_update() start\n",MODULE_NAME);
+			dump_cache_node(process_info);
+			dump_cache_node(cache_node);
       
-      if((strlen(process_info->data.path)>0) &&
-          strncmp(cache_node->data.path, process_info->data.path
-                ,EVENT_MAX_PATH_LEN) != 0)
-      {
-          strncpy(cache_node->data.path, process_info->data.path
-                 ,EVENT_MAX_PATH_LEN);
-      }
+			if ((strlen(process_info->data.path) > 0) &&
+			    strncmp(cache_node->data.path, 
+				    process_info->data.path,
+				    EVENT_MAX_PATH_LEN) != 0) {
 
-      if((strlen(process_info->data.name)>0) &&
-          strncmp(cache_node->data.name, process_info->data.name
-                ,EVENT_MAX_PATH_LEN)!=0)
-      {
-         strncpy(cache_node->data.name, process_info->data.name
-                ,EVENT_MAX_PATH_LEN);
-      }
+				strncpy(cache_node->data.path, 
+					process_info->data.path,
+					EVENT_MAX_PATH_LEN);
+			}
 
-      if((strlen(process_info->data.cmdline)>0) &&
-          strncmp(cache_node->data.cmdline, process_info->data.cmdline
-                ,EVENT_MAX_PATH_LEN)!=0)
-      {
-          strncpy(cache_node->data.cmdline, process_info->data.cmdline
-                 ,EVENT_MAX_PATH_LEN);
-      }
+			if ((strlen(process_info->data.name) > 0) &&
+			    strncmp(cache_node->data.name, 
+				    process_info->data.name,
+				    EVENT_MAX_PATH_LEN) != 0) {
 
-      cache_node->data.created_at = process_info->data.created_at;
-      cache_node->data.modified_at = process_info->data.modified_at;
-      cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
-      cache_node->data.file_size= process_info->data.file_size;
+				strncpy(cache_node->data.name, 
+					process_info->data.name,
+					EVENT_MAX_PATH_LEN);
+			}
+
+			if ((strlen(process_info->data.cmdline) > 0) &&
+			    strncmp(cache_node->data.cmdline, 
+				    process_info->data.cmdline,
+				    EVENT_MAX_PATH_LEN) != 0 ) {
+
+				strncpy(cache_node->data.cmdline, 
+					process_info->data.cmdline,
+					EVENT_MAX_PATH_LEN);
+			}
+
+			cache_node->data.created_at = process_info->data.created_at;
+			cache_node->data.modified_at = process_info->data.modified_at;
+			cache_node->data.last_accessed_at = process_info->data.last_accessed_at;
+			cache_node->data.file_size = process_info->data.file_size;
      
-      cache_node->data.task_start_time = process_info->data.task_start_time;
+			cache_node->data.task_start_time = process_info->data.task_start_time;
 
-      if((strlen(process_info->data.parent_name)>0) &&
-          strncmp(cache_node->data.parent_name,process_info->data.parent_name
-                ,EVENT_MAX_PATH_LEN)!=0)
-      {
-          strncpy(cache_node->data.parent_name,process_info->data.parent_name
-                 ,EVENT_MAX_PATH_LEN);
-      }
+			if ((strlen(process_info->data.parent_name) > 0) &&
+			    strncmp(cache_node->data.parent_name,
+				    process_info->data.parent_name,
+				    EVENT_MAX_PATH_LEN) != 0) {
 
-      if((strlen(process_info->data.parent_path)>0) &&
-          strncmp(cache_node->data.parent_path,process_info->data.parent_path
-                ,EVENT_MAX_PATH_LEN)!=0)
-      {
-          strncpy(cache_node->data.parent_path,process_info->data.parent_path
-                 ,EVENT_MAX_PATH_LEN);
+				strncpy(cache_node->data.parent_name,
+					process_info->data.parent_name,
+					EVENT_MAX_PATH_LEN);
+			}
 
-      }
+			if ((strlen(process_info->data.parent_path) > 0) &&
+			    strncmp(cache_node->data.parent_path,
+				    process_info->data.parent_path,
+				    EVENT_MAX_PATH_LEN) !=0 ) {
+
+				strncpy(cache_node->data.parent_path,
+					process_info->data.parent_path,
+					EVENT_MAX_PATH_LEN);
+			}
 
 
-      if((strlen(process_info->data.parent_cmdline)>0) && 
-          strncmp(cache_node->data.parent_cmdline,process_info->data.parent_cmdline
-                ,EVENT_MAX_PATH_LEN)!=0)
-      {
-          strncpy(cache_node->data.parent_cmdline,process_info->data.parent_cmdline
-                 ,EVENT_MAX_PATH_LEN);   
+			if ((strlen(process_info->data.parent_cmdline) > 0) && 
+			    strncmp(cache_node->data.parent_cmdline,
+				    process_info->data.parent_cmdline,
+				    EVENT_MAX_PATH_LEN) != 0) {
+
+				strncpy(cache_node->data.parent_cmdline,
+					process_info->data.parent_cmdline,
+					EVENT_MAX_PATH_LEN);   
+			}
+
+
+			if (cache_node->data.parent_created_at.tv_sec == 0)
+				cache_node->data.parent_created_at = process_info->data.parent_created_at;
+
+			if (cache_node->data.parent_modified_at.tv_sec == 0)
+				cache_node->data.parent_modified_at = process_info->data.parent_modified_at;
+
+			if (cache_node->data.parent_last_accessed_at.tv_sec == 0)
+				cache_node->data.parent_last_accessed_at = process_info->data.parent_last_accessed_at; 
    
-      }
+			if (cache_node->data.parent_file_size == 0)
+				cache_node->data.parent_file_size = process_info->data.parent_file_size;
 
+			/* union then both will be copied into the same memory speace  */
+			if (process_info->data.identifier_valid == 1) {
+				memcpy(cache_node->data.sha1, 
+				       process_info->data.sha1,
+				       SHA1_LENGTH);
+				cache_node->data.identifier_valid = 1;
+			}
 
-      if(cache_node->data.parent_created_at.tv_sec==0)
-        cache_node->data.parent_created_at = process_info->data.parent_created_at;
-
-      if(cache_node->data.parent_modified_at.tv_sec==0)
-	cache_node->data.parent_modified_at = process_info->data.parent_modified_at;
-
-      if(cache_node->data.parent_last_accessed_at.tv_sec==0)
-	cache_node->data.parent_last_accessed_at = process_info->data.parent_last_accessed_at; 
-   
-      if(cache_node->data.parent_file_size==0)
-	cache_node->data.parent_file_size = process_info->data.parent_file_size;
-
-      /* union then both will be copied into the same memory speace  */
-      if(process_info->data.identifier_valid==1) {
-          memcpy(cache_node->data.sha1, process_info->data.sha1
-                ,SHA1_LENGTH);
-          cache_node->data.identifier_valid=1;
-      }
-
-      /* union then both will be copied into the same memory speace  */
-      if(process_info->data.parent_identifier_valid==1) {
-          memcpy(cache_node->data.parent_sha1, process_info->data.parent_sha1
-                ,SHA1_LENGTH);
-          cache_node->data.parent_identifier_valid=1;
-      }
+			/* union then both will be copied into the same memory speace  */
+			if (process_info->data.parent_identifier_valid == 1) {
+				memcpy(cache_node->data.parent_sha1, 
+				       process_info->data.parent_sha1,
+				       SHA1_LENGTH);
+				cache_node->data.parent_identifier_valid = 1;
+			}
       
-      //dump_cache_node(cache_node);
-      //info("[ %s ] cache_rcu_update() end\n", MODULE_NAME);
+			dump_cache_node(cache_node);
+			info("[ %s ] cache_rcu_update() end\n", MODULE_NAME);
 
-      spin_unlock_irqrestore(&s_lock,flags);   
-      rcu_read_unlock();
+			spin_unlock_irqrestore(&s_lock,flags);   
+			rcu_read_unlock();
 
-      smp_mb();
+			smp_mb();
 
-      return SUCCESS;
-    }
+			return SUCCESS;
+		}
 
-  }
+	}
 
-  rcu_read_unlock();
+	rcu_read_unlock();
 
- return ERROR;
+	return ERROR;
 }
 
 
-int get_process_cache_node(pid_t pid, struct process_cache_node* process_info)
-{
-  struct process_cache_node* p;
-  unsigned long key=0; 
+int get_process_cache_node(pid_t pid, struct process_cache_node *process_info) {
 
 
-  memcpy(&key,&pid,sizeof(pid_t));  
+	struct process_cache_node *p;
+	unsigned long key = 0; 
 
-  //  debug("[ CACHE ] get_process_cache_node  pid [ %d ]  key: %d", pid,key);
 
-  rcu_read_lock();
+	memcpy(&key, &pid, sizeof(pid_t));  
 
-  hash_for_each_possible_rcu(h_process_cache,p,list,key)
-  { /*
-     debug("[ CACHE ] get_process_cache_node  pid [ %d ] process_info->data.pid [ %d ]." \
-     " key: %lu ", pid, process_info->data.pid, key);    */
+	//  debug("[ CACHE ] get_process_cache_node  pid [ %d ]  key: %d", pid,key);
 
-    if(p->data.pid==pid)
-    {
-      /* special case to be protected from page fault
-         so if node will be used out side for period of time, it would be better 
-         to return a copy of it and not a pointer to memory address which may not be on virtual 
-         address space of the ko */
-      if(process_info!=NULL)
-      {
-         memcpy(process_info,p,sizeof(struct process_cache_node));
-      }
+	rcu_read_lock();
 
-      rcu_read_unlock();
-      return SUCCESS;
-    }
-  }
+	hash_for_each_possible_rcu(h_process_cache, p, list, key) {
+		/*
+		  debug("[ CACHE ] get_process_cache_node  pid [ %d ] process_info->data.pid [ %d ]." \
+		  " key: %lu ", pid, process_info->data.pid, key);  
+		*/
 
-  rcu_read_unlock();
+		if (p->data.pid == pid) {
 
- return ERROR;
+			/* 
+			   special case to be protected from page fault
+			   so if node will be used out side for period of time, it would be better 
+			   to return a copy of it and not a pointer to memory address which may not be on virtual 
+			   address space of the ko 
+			*/
+			if (process_info != NULL) {
+				memcpy(process_info, p, sizeof(struct process_cache_node));
+			}
+
+			rcu_read_unlock();
+			return SUCCESS;
+		}
+	}
+
+	rcu_read_unlock();
+
+	return ERROR;
 }
 
 
-int cache_rcu_process_item(pid_t pid, struct process_cache_node* process_info
+int cache_rcu_process_item(pid_t pid, struct process_cache_node *process_info
                           ,unsigned char mode)
 {
-  int ret=SUCCESS;
-  struct process_cache_node cache_node;     
-  memset(&cache_node,0,sizeof(struct process_cache_node));
+
+	int ret = SUCCESS;
+	struct process_cache_node cache_node;     
+	memset(&cache_node, 0, sizeof(struct process_cache_node));
  
-  smp_rmb();
+	smp_rmb();
 
-  if(NULL != process_info)
-  {
-     ret=get_process_cache_node(pid,&cache_node);
-     smp_rmb();
+	if (NULL != process_info) {
 
-     if(SUCCESS==ret)
-     { /* update existing item */
-       cache_rcu_update(process_info);
-     }else if(ERROR==ret)
-     { /* add new cache node item */
-       cache_rcu_add_node(process_info,mode); 
-     }     
-  }else if(SUCCESS==get_process_cache_node(pid,NULL))  
-  {  /* delete item */    
-     cache_rcu_remove(pid);
-     //sign_node_status_delete(pid);
-  }else
-  {  
-     ret=ERROR;
-  }
+		ret = get_process_cache_node(pid, &cache_node);
+		smp_rmb();
 
- return ret;
+		if(SUCCESS == ret) {
+			/* update existing item */
+			cache_rcu_update(process_info);
+		}else if (ERROR == ret)
+		{ 
+			/* add new cache node item */
+			cache_rcu_add_node(process_info, mode); 
+		}     
+	} else if(SUCCESS == get_process_cache_node(pid, NULL))  
+	{  
+		/* delete item */    
+		cache_rcu_remove(pid);
+		//sign_node_status_delete(pid);
+	} else
+	{  
+		ret = ERROR;
+	}
+
+	return ret;
 }
 
 

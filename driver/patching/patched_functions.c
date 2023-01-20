@@ -191,14 +191,14 @@ static asmlinkage long new_sys_execve(const char __user * filename,
 				}
 			}           
 
-
+			/*
 			info("[ %s ]  executable_file_path: [ %s ]  executable_file_name: [ %s ]  execve_args_str: [ %s ] continue_process: [ %d ] ", 
 			     MODULE_NAME,
 			     executable_file_path,
 			     executable_file_name,
 			     execve_args_str,
 			     continue_process );
-
+			*/
 
 
 			if( (continue_process == SUCCESS) &&
@@ -631,7 +631,7 @@ static asmlinkage long new_sys_connect(int fd
 {
 
 
-  int move_addr_to_kernel(void __user *uaddr, int ulen, struct sockaddr_storage *kaddr);
+	int move_addr_to_kernel(void __user *uaddr, int ulen, struct sockaddr_storage *kaddr);
 
 
 	TEST_STATUS(EAGAIN);
@@ -793,13 +793,15 @@ static asmlinkage long new_sys_open(const char __user *filename,
 					      filename, 
 					      ((strlen(filename) + 1) * sizeof(char)) ) != (-EFAULT) ) 
 			{
-				
+			
+				/*	
 				//TODO add support for absolute path derivation
 				debug("[ %s ]  filename: [ %s ] flags: [ %d ] mode: [ %u ] ", 
 				      MODULE_NAME,
 				      file_name_path,
 				      flags,
 				      mode);
+				*/
 			}
 	
 			
