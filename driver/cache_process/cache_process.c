@@ -398,6 +398,8 @@ int cache_rcu_add_node(struct process_cache_node *process_info, unsigned char mo
 	/* used only by lib_process*/
 	if (mode == NODE_FULL_INSERT) { 
 
+		info("[ %s ] cache_rcu_add_node() start NODE_FULL_INSERT \n", MODULE_NAME);
+
 		cache_node->data.pid = process_info->data.pid;
 		cache_node->data.parent_pid = process_info->data.parent_pid;
 
@@ -452,13 +454,14 @@ int cache_rcu_add_node(struct process_cache_node *process_info, unsigned char mo
 			       SHA1_LENGTH);          
 		}
 
+		dump_cache_node(cache_node);
+
 	} else
 	{ 
 		/*  used from cache_process_handler.c when process not exist in cache*/
 		/* copy data to new cache node item */
 
-		//info("[ %s ] cache_rcu_add_node() start\n", MODULE_NAME);
-		//dump_cache_node(process_info);
+		info("[ %s ] cache_rcu_add_node() start\n", MODULE_NAME);
 
 		cache_node->data.pid = process_info->data.pid;
 		cache_node->data.parent_pid = process_info->data.parent_pid;       
@@ -495,10 +498,10 @@ int cache_rcu_add_node(struct process_cache_node *process_info, unsigned char mo
 		/* copy parent process information */
 		get_parent_process_information(cache_node,mode);  
 
+		dump_cache_node(process_info);
 	}
 
 
-	dump_cache_node(cache_node);
 	info("[ %s ] cache_rcu_add_node() end\n",MODULE_NAME);
 
 
@@ -542,9 +545,7 @@ static int cache_rcu_update(struct process_cache_node *process_info) {
 			spin_lock_irqsave(&s_lock, flags);
 
 			info("[ %s ] cache_rcu_update() start\n",MODULE_NAME);
-			dump_cache_node(process_info);
-			dump_cache_node(cache_node);
-      
+			      
 			if ((strlen(process_info->data.path) > 0) &&
 			    strncmp(cache_node->data.path, 
 				    process_info->data.path,
@@ -703,8 +704,7 @@ int get_process_cache_node(pid_t pid, struct process_cache_node *process_info) {
 }
 
 
-int cache_rcu_process_item(pid_t pid, struct process_cache_node *process_info
-                          ,unsigned char mode)
+int cache_rcu_process_item(pid_t pid, struct process_cache_node *process_info, unsigned char mode)
 {
 
 	int ret = SUCCESS;

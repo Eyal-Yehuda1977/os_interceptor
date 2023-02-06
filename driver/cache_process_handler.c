@@ -152,10 +152,10 @@ int gather_process_information_syscall_execve(char* target_file_path,
 	if ( NULL != target_file_path ) {  
    
 		memset(&f_inf, 0, sizeof(struct file_info_t));
-		if(__user__file_info(filename ,
-				     algo_md5, 
-				     &f_inf,
-				     &process_info->data.identifier_valid) == SUCCESS ) 
+		if (__user__file_info(filename ,
+				      algo_md5, 
+				      &f_inf,
+				      &process_info->data.identifier_valid) == SUCCESS ) 
 		{
 
 			file_name = get_file_name_from_path(f_inf.path);
@@ -202,7 +202,9 @@ int gather_process_information_syscall_execve(char* target_file_path,
 	vfree((void*)attr);
   
 	smp_mb();
-	cache_rcu_process_item(process_info->data.pid, process_info, GET_PARENT_CMDLINE);
+	cache_rcu_process_item(process_info->data.pid, 
+			       process_info, 
+			       GET_PARENT_CMDLINE);
   
   
 	/* 

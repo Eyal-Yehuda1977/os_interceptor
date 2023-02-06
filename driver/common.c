@@ -451,11 +451,10 @@ int __user__file_info(const char __user *filename, const unsigned char algo
 		     ,struct file_info_t *f_inf, unsigned char *identifier_valid)
 {
 
-	extern asmlinkage long (*original_sys_open_fn)(int dfd, const char __user *filename,
+	extern asmlinkage long (*original_sys_open_fn)(const char __user *filename,
 						       int flags, umode_t mode);
 
-	extern asmlinkage long (*original_sys_close_fn)(struct files_struct *files
-							,unsigned fd);
+	extern asmlinkage long (*original_sys_close_fn)(unsigned fd);
 
 	/*
 	  always open with root permissions
@@ -463,13 +462,13 @@ int __user__file_info(const char __user *filename, const unsigned char algo
 	umode_t mode = S_IFREG|0644; 
 	struct fd f;
 	int fd = 0, flags = O_RDONLY;
-	char* pwd = NULL, *file_buffer = NULL;
+	char *pwd = NULL, *file_buffer = NULL;
 	struct kstat stat;
 	mm_segment_t fs;
 	char md5sum[MD5_LENGTH], sha1sum[SHA1_LENGTH], name[EVENT_MAX_PATH_LEN];
 
 	if ( force_o_largefile() ) flags |= O_LARGEFILE;
-	fd = original_sys_open_fn(AT_FDCWD, filename, flags, mode); 
+	fd = original_sys_open_fn(filename, flags, mode); 
 	if( !(fd < 0) ) {
 		f = fdget(fd);  
 		if (!(f.file))
@@ -517,7 +516,7 @@ int __user__file_info(const char __user *filename, const unsigned char algo
 
 		fdput(f);
 
-		original_sys_close_fn(current->files, fd);    
+		original_sys_close_fn(fd);    
        
 		switch(algo) {
 		case algo_md5: 
